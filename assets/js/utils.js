@@ -96,12 +96,12 @@ export async function initAppShell(activePage) {
 
 function renderSidebar(activePage, profile) {
   const navItems = [
-    { id: 'dashboard', icon: '📊', label: 'Dashboard',     href: 'dashboard.html' },
-    { id: 'expenses',  icon: '💸', label: 'Expenses',      href: 'expenses.html' },
-    { id: 'recurring', icon: '🔁', label: 'Recurring',     href: 'recurring.html' },
-    { id: 'splits',    icon: '👥', label: 'Splits',        href: 'splits.html' },
-    { id: 'reminders', icon: '🔔', label: 'Reminders',     href: 'reminders.html', badge: true },
-    { id: 'settings',  icon: '⚙️', label: 'Settings',      href: 'settings.html' },
+    { id: 'dashboard', icon: '📊', label: 'Dashboard',     href: '/expense-tracker/dashboard.html' },
+    { id: 'expenses',  icon: '💸', label: 'Expenses',      href: '/expense-tracker/expenses.html' },
+    { id: 'recurring', icon: '🔁', label: 'Recurring',     href: '/expense-tracker/recurring.html' },
+    { id: 'splits',    icon: '👥', label: 'Splits',        href: '/expense-tracker/splits.html' },
+    { id: 'reminders', icon: '🔔', label: 'Reminders',     href: '/expense-tracker/reminders.html', badge: true },
+    { id: 'settings',  icon: '⚙️', label: 'Settings',      href: '/expense-tracker/settings.html' },
   ];
 
   const avatarInitial = (profile?.full_name ?? 'U')[0].toUpperCase();
@@ -152,7 +152,7 @@ function renderSidebar(activePage, profile) {
     menu.className = 'dropdown-menu open';
     menu.style.cssText = 'position:fixed;bottom:80px;left:12px;width:200px;z-index:200;';
     menu.innerHTML = `
-      <a href="settings.html" class="dropdown-item">⚙️ Settings</a>
+      <a href="/expense-tracker/settings.html" class="dropdown-item">⚙️ Settings</a>
       <div class="dropdown-divider"></div>
       <button class="dropdown-item danger" id="signout-btn">🚪 Sign Out</button>
     `;

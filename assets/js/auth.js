@@ -65,7 +65,7 @@ function initLoginForm() {
       btn.disabled = false;
       btn.textContent = 'Sign In';
     } else {
-      window.location.href = '/dashboard.html';
+      window.location.href = '/expense-tracker/dashboard.html';
     }
   });
 
@@ -143,7 +143,7 @@ function initRegisterForm() {
     }
 
     showToast('Account created! Check your email to verify.', 'success');
-    setTimeout(() => window.location.href = '/dashboard.html', 1500);
+    setTimeout(() => window.location.href = '/expense-tracker/dashboard.html', 1500);
   });
 
   // Password strength
@@ -303,7 +303,7 @@ async function acceptInvite(token, userId) {
 
   await supabase.from('invitations').update({ status: 'accepted' }).eq('id', invite.id);
 
-  window.location.href = '/dashboard.html';
+  window.location.href = '/expense-tracker/dashboard.html';
 }
 
 // ============================================================
@@ -319,7 +319,7 @@ function initThemeToggle() {
     toggle.addEventListener('click', () => {
       const current = document.documentElement.getAttribute('data-theme');
       const next    = current === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', next);
+      document.docuaddmentElement.setAttribute('data-theme', next);
       localStorage.setItem('gastos-theme', next);
       toggle.textContent = next === 'dark' ? '☀️' : '🌙';
     });
