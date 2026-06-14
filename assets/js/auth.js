@@ -46,7 +46,7 @@ function initLoginForm() {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn = form.querySelector('[type="submit"]');
+    const btn      = form.querySelector('[type="submit"]');
     const email    = form.querySelector('#login-email').value.trim();
     const password = form.querySelector('#login-password').value;
 
@@ -87,12 +87,12 @@ function initRegisterForm() {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const btn         = form.querySelector('[type="submit"]');
-    const fullName    = form.querySelector('#reg-name').value.trim();
-    const email       = form.querySelector('#reg-email').value.trim();
-    const password    = form.querySelector('#reg-password').value;
-    const confirm     = form.querySelector('#reg-confirm').value;
-    const houseName   = form.querySelector('#reg-household').value.trim();
+    const btn       = form.querySelector('[type="submit"]');
+    const fullName  = form.querySelector('#reg-name').value.trim();
+    const email     = form.querySelector('#reg-email').value.trim();
+    const password  = form.querySelector('#reg-password').value;
+    const confirm   = form.querySelector('#reg-confirm').value;
+    const houseName = form.querySelector('#reg-household').value.trim();
 
     if (!fullName || !email || !password || !houseName) {
       showToast('Please fill in all required fields.', 'warning'); return;
@@ -111,10 +111,10 @@ function initRegisterForm() {
     const { data: authData, error: signupError } = await supabase.auth.signUp({
       email,
       password,
-      options: { 
+      options: {
         data: { full_name: fullName },
-        emailRedirectTo: 'https://gelomm.github.io/expense-tracker/dashboard.html'
-    },
+        emailRedirectTo: 'https://gelomm.github.io/expense-tracker/dashboard.html',
+      },
     });
 
     if (signupError) {
@@ -124,44 +124,73 @@ function initRegisterForm() {
       return;
     }
 
-    const userId = authData.user?.id;
+    // 2. Sign in immediately to get a valid session for DB operations
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    // 2. Create household
+    if (signInError) {
+      // Account created but can't auto-login — likely needs email confirmation first
+      showToast('Account created! Please verify your email then log in.', 'success');
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
+
+    const userId = signInData.user?.id;
+
+    // 3. Create household (now has a valid session)
     const { data: household, error: hhError } = await supabase
       .from('households')
       .insert({ name: houseName, created_by: userId })
-      .select().single();
+      .select()
+      .single();
 
     if (hhError) {
       console.error('Household error:', hhError);
-      showToast('Account created but could not set up household. Please log in.', 'warning');
-    } else {
-      // 3. Update profile with household
-      await supabase.from('profiles').update({
+      showToast('Account created but household setup failed: ' + hhError.message, 'warning');
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
+
+    // 4. Update profile with household info
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
         household_id: household.id,
         role: 'owner',
-      }).eq('id', userId);
+      })
+      .eq('id', userId);
 
-      // 4. Seed household-specific default categories from global
-      await seedHouseholdCategories(userId, household.id);
+    if (profileError) {
+      console.error('Profile update error:', profileError);
     }
+
+    // 5. Seed a starter tag for the household
+    await seedHouseholdData(userId, household.id);
 
     showToast('Account created! Check your email to verify.', 'success');
     setTimeout(() => window.location.href = '/expense-tracker/dashboard.html', 1500);
   });
 
-  // Password strength
+  // Password strength indicator
   const pwInput = document.getElementById('reg-password');
   pwInput?.addEventListener('input', () => updatePasswordStrength(pwInput.value));
 }
 
-async function seedHouseholdCategories(userId, householdId) {
-  // Categories with null household_id are global defaults
-  // They're already shared, no need to duplicate.
-  // This function can be used to seed custom starter tags.
+async function seedHouseholdData(userId, householdId) {
+  // Seed a starter "Shared" tag for the household
   await supabase.from('tags').insert([
-    { name: 'Shared', color: '#4F46E5', is_default: false, household_id: householdId, created_by: userId },
-  ]).select();
+    {
+      name: 'Shared',
+      color: '#4F46E5',
+      is_default: false,
+      household_id: householdId,
+      created_by: userId,
+    },
+  ]);
 }
 
 function updatePasswordStrength(password) {
@@ -170,36 +199,40 @@ function updatePasswordStrength(password) {
   if (!bar || !label) return;
 
   let score = 0;
-  if (password.length >= 8)  score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
+  if (password.length >= 8)          score++;
+  if (password.length >= 12)         score++;
+  if (/[A-Z]/.test(password))        score++;
+  if (/[0-9]/.test(password))        score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
   const levels = [
-    { width: '20%', color: '#EF4444', label: 'Very weak' },
-    { width: '40%', color: '#F97316', label: 'Weak' },
-    { width: '60%', color: '#F59E0B', label: 'Fair' },
-    { width: '80%', color: '#10B981', label: 'Strong' },
+    { width: '20%',  color: '#EF4444', label: 'Very weak' },
+    { width: '40%',  color: '#F97316', label: 'Weak' },
+    { width: '60%',  color: '#F59E0B', label: 'Fair' },
+    { width: '80%',  color: '#10B981', label: 'Strong' },
     { width: '100%', color: '#059669', label: 'Very strong' },
   ];
 
   const level = levels[Math.min(score - 1, 4)] ?? levels[0];
-  if (password.length === 0) { bar.style.width = '0%'; label.textContent = ''; return; }
-  bar.style.width = level.width;
+  if (password.length === 0) {
+    bar.style.width = '0%';
+    label.textContent = '';
+    return;
+  }
+  bar.style.width     = level.width;
   bar.style.background = level.color;
-  label.textContent = level.label;
-  label.style.color = level.color;
+  label.textContent   = level.label;
+  label.style.color   = level.color;
 }
 
 // ============================================================
 // FORGOT PASSWORD
 // ============================================================
 function initForgotPassword() {
-  const link = document.getElementById('forgot-password-link');
-  const modal = document.getElementById('forgot-modal');
+  const link     = document.getElementById('forgot-password-link');
+  const modal    = document.getElementById('forgot-modal');
   const closeBtn = document.getElementById('close-forgot-modal');
-  const form = document.getElementById('forgot-form');
+  const form     = document.getElementById('forgot-form');
 
   link?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -220,7 +253,7 @@ function initForgotPassword() {
     btn.textContent = 'Sending…';
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `https://gelomm.github.io/expense-tracker/settings.html#reset-password`,
+      redirectTo: 'https://gelomm.github.io/expense-tracker/settings.html#reset-password',
     });
 
     if (error) {
@@ -239,16 +272,15 @@ function initForgotPassword() {
 // INVITE TOKEN — Accept an invite from URL
 // ============================================================
 async function checkInviteToken() {
-  const params = new URLSearchParams(window.location.search);
-  const token  = params.get('invite');
+  const params     = new URLSearchParams(window.location.search);
+  const token      = params.get('invite');
   if (!token) return;
 
-  const banner = document.getElementById('invite-banner');
+  const banner     = document.getElementById('invite-banner');
   const tokenInput = document.getElementById('invite-token-field');
-  if (banner)     banner.classList.remove('hidden');
-  if (tokenInput) tokenInput.value = token;
+  if (banner)      banner.classList.remove('hidden');
+  if (tokenInput)  tokenInput.value = token;
 
-  // Fetch invite info
   const { data: invite } = await supabase
     .from('invitations')
     .select('*, household:households(name), inviter:profiles(full_name)')
@@ -276,13 +308,11 @@ async function checkInviteToken() {
     `;
   }
 
-  // Pre-fill register email
   const emailInput = document.getElementById('reg-email');
   if (emailInput && invite.invited_email) {
     emailInput.value = invite.invited_email;
   }
 
-  // After auth, process invite
   supabase.auth.onAuthStateChange(async (event, session) => {
     if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
       await acceptInvite(token, session.user.id);
