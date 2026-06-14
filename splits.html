@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Splits — Gastos</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    .splits-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: var(--space-5);
+      align-items: start;
+    }
+    .member-card {
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .member-card:hover { box-shadow: var(--shadow-md); border-color: var(--clr-primary); }
+    .member-card.selected { border-color: var(--clr-primary); background: var(--clr-primary-light); }
+    .balance-pill {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: var(--text-sm);
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+    }
+    .balance-positive { background: var(--clr-success-light); color: var(--clr-success); }
+    .balance-negative { background: var(--clr-danger-light);  color: var(--clr-danger); }
+    .balance-zero     { background: var(--clr-surface-2);     color: var(--clr-text-muted); }
+    .split-detail-card {
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .split-detail-header {
+      padding: var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+    .split-expense-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: var(--space-3);
+      align-items: center;
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      transition: background var(--transition-fast);
+    }
+    .split-expense-row:last-child { border-bottom: none; }
+    .split-expense-row:hover { background: var(--clr-surface-2); }
+    .split-expense-row.settled { opacity: 0.5; }
+    .net-summary-box {
+      background: var(--clr-surface-2);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      margin-bottom: var(--space-5);
+    }
+    .net-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--clr-border);
+    }
+    .net-row:last-child { border-bottom: none; }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--clr-border);
+      font-size: var(--text-sm);
+    }
+    .history-item:last-child { border-bottom: none; }
+    @media (max-width: 900px) {
+      .splits-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar"></aside>
+  <div class="sidebar-overlay"></div>
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn-hamburger" id="hamburger-btn">☰</button>
+      <span class="topbar-title">Splits &amp; Settlements</span>
+      <div class="topbar-actions">
+        <select class="filter-select" id="month-filter"></select>
+        <button class="btn btn-ghost btn-icon" id="theme-toggle"><span id="theme-icon">🌙</span></button>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- Net Summary -->
+      <div class="net-summary-box" id="net-summary">
+        <div class="skeleton" style="height:60px;border-radius:8px;"></div>
+      </div>
+
+      <div class="splits-layout">
+        <!-- Left: Member list -->
+        <div>
+          <div class="section-title mb-4">Household Members</div>
+          <div id="member-list" style="display:flex;flex-direction:column;gap:var(--space-3);">
+            <div class="skeleton" style="height:68px;border-radius:12px;"></div>
+            <div class="skeleton" style="height:68px;border-radius:12px;"></div>
+          </div>
+
+          <!-- Settlement History -->
+          <div class="section-title mt-6 mb-3">Settlement History</div>
+          <div class="card" id="history-list" style="padding:0;overflow:hidden;">
+            <div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">Loading…</div>
+          </div>
+        </div>
+
+        <!-- Right: Detail panel -->
+        <div id="split-detail-panel">
+          <div class="empty-state">
+            <div class="empty-icon">👥</div>
+            <div class="empty-title">Select a member</div>
+            <div class="empty-text">Click a household member on the left to see your shared expenses and settle up.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<nav class="mobile-bottom-nav"></nav>
+<div class="toast-container"></div>
+
+<script type="module">
+import { supabase, formatPHP, formatDate, monthBounds } from './assets/js/supabase.js';
+import { initAppShell, initMonthFilter, showToast, escHtml, confirm } from './assets/js/utils.js';
+
+let currentUser, currentProfile, currentMonth;
+let allMembers = [], allSplits = [], settledHistory = [];
+let selectedMemberId = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = await initAppShell('splits');
+  if (!auth) return;
+  currentUser    = auth.user;
+  currentProfile = auth.profile;
+
+  currentMonth = initMonthFilter(async (m) => { currentMonth = m; await loadAll(); });
+  await loadAll();
+});
+
+async function loadAll() {
+  const { start, end } = monthBounds(currentMonth);
+  await Promise.all([loadMembers(), loadSplits(start, end), loadHistory()]);
+  renderNetSummary();
+  renderMemberList();
+  if (selectedMemberId) renderDetail(selectedMemberId);
+}
+
+async function loadMembers() {
+  const { data } = await supabase
+    .from('profiles').select('id, full_name')
+    .eq('household_id', currentProfile.household_id);
+  allMembers = (data ?? []).filter(m => m.id !== currentUser.id);
+}
+
+async function loadSplits(start, end) {
+  const { data } = await supabase
+    .from('expense_splits')
+    .select('*, expense:expenses(id, title, amount, expense_date, paid_by, household_id), profile:profiles(id, full_name)')
+    .eq('is_settled', false);
+
+  allSplits = (data ?? []).filter(s =>
+    s.expense?.household_id === currentProfile.household_id &&
+    s.expense?.expense_date >= start &&
+    s.expense?.expense_date <= end
+  );
+}
+
+async function loadHistory() {
+  const { data } = await supabase
+    .from('expense_splits')
+    .select('*, expense:expenses(title, paid_by), profile:profiles(id, full_name)')
+    .eq('is_settled', true)
+    .order('settled_at', { ascending: false })
+    .limit(20);
+
+  settledHistory = (data ?? []).filter(s => s.expense?.household_id === currentProfile.household_id);
+  renderHistory();
+}
+
+function renderNetSummary() {
+  const netBox = document.getElementById('net-summary');
+  if (!netBox) return;
+
+  // Calculate net balance per member
+  const balances = {};
+  for (const m of allMembers) balances[m.id] = { name: m.full_name, owe: 0, owed: 0 };
+
+  for (const s of allSplits) {
+    const mid = s.profile_id;
+    if (!balances[mid]) continue;
+    const paidByMe = s.expense?.paid_by === currentUser.id;
+    if (paidByMe) {
+      balances[mid].owed += Number(s.amount ?? 0);
+    } else if (s.profile_id === currentUser.id) {
+      // I owe someone — handled in member perspective
+    }
+  }
+
+  const totalOwed = Object.values(balances).reduce((s, b) => s + b.owed, 0);
+  const totalOwe  = allSplits
+    .filter(s => s.profile_id === currentUser.id)
+    .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+
+  netBox.innerHTML = `
+    <div class="flex items-center gap-6 flex-wrap">
+      <div style="flex:1;min-width:120px;">
+        <div class="text-xs text-muted font-semibold uppercase tracking-wide mb-1">Others Owe You</div>
+        <div class="font-mono font-bold text-2xl text-success">${formatPHP(totalOwed)}</div>
+      </div>
+      <div style="width:1px;height:48px;background:var(--clr-border);"></div>
+      <div style="flex:1;min-width:120px;">
+        <div class="text-xs text-muted font-semibold uppercase tracking-wide mb-1">You Owe Others</div>
+        <div class="font-mono font-bold text-2xl text-danger">${formatPHP(totalOwe)}</div>
+      </div>
+      <div style="width:1px;height:48px;background:var(--clr-border);"></div>
+      <div style="flex:1;min-width:120px;">
+        <div class="text-xs text-muted font-semibold uppercase tracking-wide mb-1">Net Balance</div>
+        <div class="font-mono font-bold text-2xl ${totalOwed - totalOwe >= 0 ? 'text-success' : 'text-danger'}">
+          ${formatPHP(Math.abs(totalOwed - totalOwe))}
+          <span class="text-sm font-sans font-normal text-muted ml-1">${totalOwed - totalOwe >= 0 ? 'in your favor' : 'you owe'}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderMemberList() {
+  const container = document.getElementById('member-list');
+  if (!container) return;
+
+  if (allMembers.length === 0) {
+    container.innerHTML = `<div class="empty-state" style="padding:var(--space-6);">
+      <div class="empty-icon">👥</div>
+      <div class="empty-text">No other members yet. Invite someone in Settings.</div>
+      <a href="settings.html" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Go to Settings</a>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = allMembers.map(m => {
+    // Calculate net with this member
+    const theyOweMe = allSplits
+      .filter(s => s.profile_id === m.id && s.expense?.paid_by === currentUser.id)
+      .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+    const iOweThem = allSplits
+      .filter(s => s.profile_id === currentUser.id && s.expense?.paid_by === m.id)
+      .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+    const net = theyOweMe - iOweThem;
+
+    const pillClass = net > 0.01 ? 'balance-positive' : net < -0.01 ? 'balance-negative' : 'balance-zero';
+    const pillText  = net > 0.01 ? `+${formatPHP(net)}` : net < -0.01 ? formatPHP(net) : 'Settled';
+
+    return `
+      <div class="member-card ${selectedMemberId === m.id ? 'selected' : ''}"
+           onclick="selectMember('${m.id}')">
+        <div class="avatar avatar-lg">${m.full_name[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="font-semibold truncate">${escHtml(m.full_name)}</div>
+          <div class="text-xs text-muted">${allSplits.filter(s => s.profile_id === m.id || s.expense?.paid_by === m.id).length} shared</div>
+        </div>
+        <span class="balance-pill ${pillClass}">${pillText}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+window.selectMember = function(memberId) {
+  selectedMemberId = memberId;
+  renderMemberList();
+  renderDetail(memberId);
+};
+
+function renderDetail(memberId) {
+  const member  = allMembers.find(m => m.id === memberId);
+  const panel   = document.getElementById('split-detail-panel');
+  if (!member || !panel) return;
+
+  // Get all unsettled splits between me and this member
+  const theyOweMe = allSplits.filter(s => s.profile_id === member.id && s.expense?.paid_by === currentUser.id);
+  const iOweThem  = allSplits.filter(s => s.profile_id === currentUser.id && s.expense?.paid_by === member.id);
+
+  const totalTheyOwe = theyOweMe.reduce((s, x) => s + Number(x.amount ?? 0), 0);
+  const totalIOwe    = iOweThem.reduce((s, x) => s + Number(x.amount ?? 0), 0);
+  const net          = totalTheyOwe - totalIOwe;
+
+  panel.innerHTML = `
+    <div class="split-detail-card">
+      <div class="split-detail-header">
+        <div class="avatar avatar-xl">${member.full_name[0].toUpperCase()}</div>
+        <div style="flex:1;">
+          <div class="text-xl font-bold">${escHtml(member.full_name)}</div>
+          <div class="text-sm text-muted">${theyOweMe.length + iOweThem.length} unsettled expense${theyOweMe.length + iOweThem.length !== 1 ? 's' : ''}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="text-xs text-muted mb-1">${net >= 0 ? 'They owe you' : 'You owe them'}</div>
+          <div class="font-mono font-bold text-2xl ${net >= 0 ? 'text-success' : 'text-danger'}">${formatPHP(Math.abs(net))}</div>
+        </div>
+      </div>
+
+      ${theyOweMe.length > 0 ? `
+        <div style="padding:var(--space-4) var(--space-5);">
+          <div class="section-title" style="color:var(--clr-success);">💚 ${escHtml(member.full_name)} owes you</div>
+        </div>
+        ${theyOweMe.map(s => splitExpenseRow(s, member, 'owed')).join('')}
+        <div style="padding:var(--space-3) var(--space-5);background:var(--clr-success-light);" class="flex justify-between items-center">
+          <span class="text-sm font-semibold text-success">Subtotal they owe</span>
+          <span class="font-mono font-bold text-success">${formatPHP(totalTheyOwe)}</span>
+        </div>
+      ` : ''}
+
+      ${iOweThem.length > 0 ? `
+        <div style="padding:var(--space-4) var(--space-5);margin-top:var(--space-2);">
+          <div class="section-title" style="color:var(--clr-danger);">❤️ You owe ${escHtml(member.full_name)}</div>
+        </div>
+        ${iOweThem.map(s => splitExpenseRow(s, member, 'owe')).join('')}
+        <div style="padding:var(--space-3) var(--space-5);background:var(--clr-danger-light);" class="flex justify-between items-center">
+          <span class="text-sm font-semibold text-danger">Subtotal you owe</span>
+          <span class="font-mono font-bold text-danger">${formatPHP(totalIOwe)}</span>
+        </div>
+      ` : ''}
+
+      ${theyOweMe.length === 0 && iOweThem.length === 0 ? `
+        <div class="empty-state" style="padding:var(--space-8);">
+          <div class="empty-icon">🤝</div>
+          <div class="empty-title">All settled up!</div>
+          <div class="empty-text">No outstanding balances with ${escHtml(member.full_name)} this month.</div>
+        </div>
+      ` : `
+        <div style="padding:var(--space-5);border-top:1px solid var(--clr-border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-3);">
+          <div>
+            <div class="text-sm font-semibold">Settle all with ${escHtml(member.full_name)}</div>
+            <div class="text-xs text-muted">Mark all unsettled expenses as paid</div>
+          </div>
+          <button class="btn btn-primary" onclick="settleAll('${member.id}')">
+            ✅ Settle Up (${formatPHP(Math.abs(net))})
+          </button>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function splitExpenseRow(s, member, direction) {
+  return `
+    <div class="split-expense-row">
+      <div>
+        <div class="font-medium text-sm">${escHtml(s.expense?.title ?? 'Expense')}</div>
+        <div class="text-xs text-muted">${formatDate(s.expense?.expense_date)}</div>
+      </div>
+      <div class="font-mono text-sm ${direction === 'owed' ? 'text-success' : 'text-danger'} font-semibold">
+        ${formatPHP(s.amount)}
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="settleSingle('${s.id}')">Settle</button>
+      <a href="expenses.html" class="btn btn-sm btn-ghost">View</a>
+    </div>
+  `;
+}
+
+window.settleSingle = async function(splitId) {
+  const { error } = await supabase.from('expense_splits').update({
+    is_settled: true,
+    settled_at: new Date().toISOString(),
+  }).eq('id', splitId);
+  if (error) { showToast('Failed to settle.', 'error'); return; }
+  showToast('Marked as settled!', 'success');
+  await loadAll();
+};
+
+window.settleAll = async function(memberId) {
+  const ok = await confirm(`Mark all expenses with this member as settled?`, 'Settle Up');
+  if (!ok) return;
+
+  const splitIds = allSplits
+    .filter(s => s.profile_id === memberId || (s.profile_id === currentUser.id && s.expense?.paid_by === memberId))
+    .map(s => s.id);
+
+  if (splitIds.length === 0) return;
+
+  const { error } = await supabase.from('expense_splits')
+    .update({ is_settled: true, settled_at: new Date().toISOString() })
+    .in('id', splitIds);
+
+  if (error) { showToast('Failed to settle.', 'error'); return; }
+  showToast('All settled up! 🎉', 'success');
+  await loadAll();
+};
+
+function renderHistory() {
+  const container = document.getElementById('history-list');
+  if (!container) return;
+
+  if (settledHistory.length === 0) {
+    container.innerHTML = '<div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">No settled expenses yet.</div>';
+    return;
+  }
+
+  container.innerHTML = settledHistory.slice(0, 10).map(s => `
+    <div class="history-item">
+      <span style="font-size:1rem;">✅</span>
+      <div style="flex:1;min-width:0;">
+        <div class="font-medium truncate">${escHtml(s.expense?.title ?? 'Expense')}</div>
+        <div class="text-xs text-muted">${escHtml(s.profile?.full_name ?? '')} · ${formatDate(s.settled_at)}</div>
+      </div>
+      <div class="font-mono text-sm font-semibold text-success">${formatPHP(s.amount)}</div>
+    </div>
+  `).join('');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expenses — Gastos</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    .expense-title-cell { display:flex; align-items:center; gap:var(--space-2); }
+    .expense-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+    .split-members { display:flex; gap:4px; flex-wrap:wrap; }
+    .split-avatar  { width:22px;height:22px;font-size:0.6rem;border-radius:50%;background:var(--clr-primary);color:white;display:flex;align-items:center;justify-content:center;font-weight:700; }
+    .row-actions { display:flex; gap:var(--space-1); opacity:0; transition:opacity var(--transition-fast); }
+    tbody tr:hover .row-actions { opacity:1; }
+
+    /* Split builder */
+    .split-member-row { display:grid; grid-template-columns:1fr 120px 120px; gap:var(--space-3); align-items:center; padding:var(--space-2) 0; border-bottom:1px solid var(--clr-border); }
+    .split-member-row:last-child { border-bottom:none; }
+    .split-type-tabs { display:flex; gap:0; background:var(--clr-surface-2); border-radius:var(--radius-md); padding:3px; }
+    .split-type-tab  { flex:1; padding:var(--space-1) var(--space-3); border:none; background:transparent; font-size:var(--text-xs); font-weight:600; border-radius:var(--radius-sm); cursor:pointer; color:var(--clr-text-muted); transition:all var(--transition-fast); font-family:var(--font-sans); }
+    .split-type-tab.active { background:var(--clr-surface); color:var(--clr-text); box-shadow:var(--shadow-sm); }
+    .split-total-row { display:flex; justify-content:space-between; align-items:center; padding:var(--space-3); background:var(--clr-surface-2); border-radius:var(--radius-md); font-size:var(--text-sm); }
+    .tag-dropdown { position:absolute; top:100%; left:0; right:0; z-index:50; background:var(--clr-surface); border:1px solid var(--clr-border); border-radius:var(--radius-md); box-shadow:var(--shadow-md); max-height:160px; overflow-y:auto; }
+    .tag-option   { padding:var(--space-2) var(--space-3); cursor:pointer; font-size:var(--text-sm); display:flex; align-items:center; gap:var(--space-2); }
+    .tag-option:hover { background:var(--clr-surface-2); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar"></aside>
+  <div class="sidebar-overlay"></div>
+
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn-hamburger" id="hamburger-btn">☰</button>
+      <span class="topbar-title">Expenses</span>
+      <div class="topbar-actions">
+        <select class="filter-select" id="month-filter"></select>
+        <button class="btn btn-primary" id="btn-add-expense">＋ Add Expense</button>
+        <button class="btn btn-ghost btn-icon" id="theme-toggle"><span id="theme-icon">🌙</span></button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- Filters -->
+      <div class="filters-bar">
+        <div class="search-input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input class="form-control search-input" id="search-input" placeholder="Search expenses…" />
+        </div>
+        <select class="filter-select" id="filter-category">
+          <option value="">All Categories</option>
+        </select>
+        <select class="filter-select" id="filter-status">
+          <option value="">All Status</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="paid">Paid</option>
+          <option value="overdue">Overdue</option>
+        </select>
+        <select class="filter-select" id="filter-sort">
+          <option value="date_desc">Newest first</option>
+          <option value="date_asc">Oldest first</option>
+          <option value="amount_desc">Highest amount</option>
+          <option value="amount_asc">Lowest amount</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" id="btn-export">⬇ Export</button>
+      </div>
+
+      <!-- Summary bar -->
+      <div class="flex gap-4 mb-4" id="expense-summary" style="flex-wrap:wrap;">
+        <div class="badge badge-neutral" id="summary-count">Loading…</div>
+        <div class="badge badge-primary" id="summary-total"></div>
+        <div class="badge badge-danger" id="summary-overdue" style="display:none;"></div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrapper">
+        <table id="expenses-table">
+          <thead>
+            <tr>
+              <th>Expense</th>
+              <th>Category</th>
+              <th>Date</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Split</th>
+              <th style="text-align:right;">Amount</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="expenses-tbody">
+            <tr><td colspan="8" style="padding:var(--space-8);text-align:center;">
+              <div class="spinner spinner-lg" style="margin:0 auto;"></div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<nav class="mobile-bottom-nav"></nav>
+<button class="fab" id="fab-add">＋</button>
+
+<!-- ADD / EDIT EXPENSE MODAL -->
+<div class="modal-backdrop" id="expense-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 class="modal-title" id="expense-modal-title">Add Expense</h3>
+      <button class="modal-close" data-close-modal>✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-row form-row-2">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Title <span class="required">*</span></label>
+          <input class="form-control" id="exp-title" placeholder="e.g. Monthly Rent" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <div class="input-group">
+            <span class="input-prefix">₱</span>
+            <input class="form-control has-prefix" id="exp-amount" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-control" id="exp-category"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expense Date <span class="required">*</span></label>
+          <input class="form-control" id="exp-date" type="date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Due Date</label>
+          <input class="form-control" id="exp-due-date" type="date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Paid By</label>
+          <select class="form-control" id="exp-paid-by"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" id="exp-status">
+            <option value="unpaid">Unpaid</option>
+            <option value="paid">Paid</option>
+            <option value="overdue">Overdue</option>
+          </select>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Tags</label>
+          <div class="tags-input" id="exp-tags-input">
+            <div id="exp-selected-tags" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+            <input id="exp-tags-search" placeholder="Add tag…" autocomplete="off" />
+          </div>
+          <div id="exp-tags-dropdown" class="tag-dropdown hidden" style="position:relative;"></div>
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Notes</label>
+          <textarea class="form-control" id="exp-notes" rows="2" placeholder="Optional notes…"></textarea>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Split Section -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="font-semibold">Split Expense</div>
+            <div class="text-xs text-muted">Divide this expense among household members</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="exp-split-toggle" />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+
+        <div id="exp-split-section" class="hidden">
+          <div class="split-type-tabs mb-4">
+            <button class="split-type-tab active" data-split-type="equal">Equal Split</button>
+            <button class="split-type-tab" data-split-type="percentage">By %</button>
+            <button class="split-type-tab" data-split-type="fixed">Fixed ₱</button>
+          </div>
+          <div id="exp-split-members-list"></div>
+          <div class="split-total-row mt-4" id="split-total-row" style="display:none;">
+            <span>Total allocated:</span>
+            <span id="split-total-value" class="font-mono font-semibold">₱0.00</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" id="exp-submit">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW EXPENSE MODAL -->
+<div class="modal-backdrop" id="view-expense-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Expense Details</h3>
+      <button class="modal-close" data-close-modal="view-expense-modal">✕</button>
+    </div>
+    <div class="modal-body" id="view-expense-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal="view-expense-modal">Close</button>
+      <button class="btn btn-primary" id="view-edit-btn">Edit</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container"></div>
+<script type="module" src="assets/js/expenses.js"></script>
+</body>
+</html>

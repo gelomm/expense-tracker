@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gastos — Monthly Expense Tracker</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--clr-bg); }
+
+    .auth-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    /* Left panel — branding */
+    .auth-brand {
+      background: var(--clr-sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: var(--space-16);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .auth-brand::before {
+      content: '';
+      position: absolute;
+      top: -100px; right: -100px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(15,118,110,0.3) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .auth-brand::after {
+      content: '';
+      position: absolute;
+      bottom: -80px; left: -80px;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(20,184,166,0.15) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-12);
+    }
+
+    .brand-mark {
+      width: 48px; height: 48px;
+      background: var(--clr-primary);
+      border-radius: var(--radius-lg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 800; color: white;
+    }
+
+    .brand-name {
+      font-size: var(--text-2xl);
+      font-weight: 800;
+      color: #F1F5F9;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-headline {
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      color: #F1F5F9;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-4);
+    }
+
+    .brand-headline span { color: var(--clr-primary); }
+
+    .brand-sub {
+      font-size: var(--text-base);
+      color: #94A3B8;
+      line-height: 1.7;
+      margin-bottom: var(--space-10);
+    }
+
+    .brand-features {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .brand-feature {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-size: var(--text-sm);
+      color: #CBD5E1;
+    }
+
+    .brand-feature-icon {
+      width: 32px; height: 32px;
+      background: rgba(15,118,110,0.2);
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    /* Right panel — form */
+    .auth-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: var(--space-12) var(--space-12);
+      background: var(--clr-surface);
+      overflow-y: auto;
+    }
+
+    .auth-panel-inner { max-width: 420px; width: 100%; margin: 0 auto; }
+
+    .auth-tabs {
+      display: flex;
+      gap: 0;
+      background: var(--clr-surface-2);
+      border-radius: var(--radius-lg);
+      padding: 4px;
+      margin-bottom: var(--space-6);
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-md);
+      border: none;
+      background: transparent;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--clr-text-muted);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      font-family: var(--font-sans);
+    }
+
+    .auth-tab.active {
+      background: var(--clr-surface);
+      color: var(--clr-text);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .auth-header { margin-bottom: var(--space-6); }
+    .auth-title { font-size: var(--text-2xl); font-weight: 700; color: var(--clr-text); letter-spacing: -0.02em; }
+    .auth-subtitle { font-size: var(--text-sm); color: var(--clr-text-muted); margin-top: var(--space-1); }
+
+    .auth-form { display: flex; flex-direction: column; gap: var(--space-4); }
+
+    .pw-wrapper { position: relative; }
+    .pw-toggle {
+      position: absolute; right: var(--space-3); top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none;
+      cursor: pointer; font-size: var(--text-base); line-height: 1;
+      color: var(--clr-text-muted);
+    }
+
+    .pw-strength-bar-wrapper {
+      height: 4px;
+      background: var(--clr-border);
+      border-radius: var(--radius-full);
+      margin-top: var(--space-2);
+      overflow: hidden;
+    }
+    .pw-strength-bar { height: 100%; width: 0; border-radius: var(--radius-full); transition: all 300ms; }
+    .pw-strength-label { font-size: var(--text-xs); margin-top: 4px; font-weight: 500; }
+
+    .auth-divider {
+      display: flex; align-items: center; gap: var(--space-3);
+      margin: var(--space-2) 0;
+      font-size: var(--text-xs); color: var(--clr-text-muted);
+    }
+    .auth-divider::before, .auth-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--clr-border);
+    }
+
+    .auth-footer {
+      margin-top: var(--space-6);
+      font-size: var(--text-xs);
+      color: var(--clr-text-muted);
+      text-align: center;
+    }
+
+    .invite-banner {
+      background: var(--clr-primary-light);
+      border: 1px solid rgba(15,118,110,0.2);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      margin-bottom: var(--space-5);
+    }
+
+    .invite-card { display: flex; align-items: center; gap: var(--space-3); }
+    .invite-icon { font-size: 1.8rem; }
+
+    .auth-theme-btn {
+      position: fixed; top: var(--space-4); right: var(--space-4);
+      background: var(--clr-surface-2); border: 1px solid var(--clr-border);
+      border-radius: var(--radius-full);
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1.1rem;
+      transition: all var(--transition-fast);
+    }
+    .auth-theme-btn:hover { background: var(--clr-border); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .auth-wrapper { grid-template-columns: 1fr; }
+      .auth-brand { display: none; }
+      .auth-panel { padding: var(--space-8) var(--space-5); justify-content: flex-start; padding-top: var(--space-12); }
+    }
+  </style>
+</head>
+<body>
+
+<button class="auth-theme-btn" id="auth-theme-toggle" title="Toggle theme">🌙</button>
+
+<div class="auth-wrapper">
+  <!-- Left: Branding -->
+  <div class="auth-brand">
+    <div class="brand-logo">
+      <div class="brand-mark">G</div>
+      <span class="brand-name">Gastos</span>
+    </div>
+    <h1 class="brand-headline">
+      Track every peso.<br>
+      <span>Together.</span>
+    </h1>
+    <p class="brand-sub">
+      A smart monthly expense tracker for households. Split costs, plan recurring bills, and stay on top of your finances — all in one place.
+    </p>
+    <div class="brand-features">
+      <div class="brand-feature">
+        <div class="brand-feature-icon">📊</div>
+        <span>Real-time dashboard with spending insights</span>
+      </div>
+      <div class="brand-feature">
+        <div class="brand-feature-icon">👥</div>
+        <span>Split expenses equally or by custom amounts</span>
+      </div>
+      <div class="brand-feature">
+        <div class="brand-feature-icon">🔁</div>
+        <span>Automate rent, bills, and recurring expenses</span>
+      </div>
+      <div class="brand-feature">
+        <div class="brand-feature-icon">🔔</div>
+        <span>Reminders so you never miss a due date</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Auth Form -->
+  <div class="auth-panel">
+    <div class="auth-panel-inner">
+
+      <!-- Invite Banner -->
+      <div id="invite-banner" class="invite-banner hidden"></div>
+      <input type="hidden" id="invite-token-field" />
+
+      <!-- Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Sign In</button>
+        <button class="auth-tab" data-tab="register">Create Account</button>
+      </div>
+
+      <!-- LOGIN PANEL -->
+      <div data-panel="login">
+        <div class="auth-header">
+          <h2 class="auth-title">Welcome back</h2>
+          <p class="auth-subtitle">Sign in to your Gastos account</p>
+        </div>
+        <form class="auth-form" id="login-form" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="login-email">Email address</label>
+            <input class="form-control" type="email" id="login-email"
+                   placeholder="you@example.com" autocomplete="email" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="login-password">Password</label>
+            <div class="pw-wrapper">
+              <input class="form-control" type="password" id="login-password"
+                     placeholder="••••••••" autocomplete="current-password" required
+                     style="padding-right: 2.5rem;" />
+              <button type="button" class="pw-toggle" id="toggle-login-pw">👁️</button>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <a href="#" id="forgot-password-link"
+               style="font-size:var(--text-xs);color:var(--clr-primary);font-weight:500;">
+              Forgot password?
+            </a>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg w-full">Sign In</button>
+        </form>
+        <div class="auth-footer">
+          Don't have an account?
+          <button onclick="document.querySelector('[data-tab=register]').click()"
+                  style="background:none;border:none;color:var(--clr-primary);font-weight:600;cursor:pointer;font-size:inherit;">
+            Create one
+          </button>
+        </div>
+      </div>
+
+      <!-- REGISTER PANEL -->
+      <div data-panel="register" class="hidden">
+        <div class="auth-header">
+          <h2 class="auth-title">Create your account</h2>
+          <p class="auth-subtitle">Set up your household expense tracker</p>
+        </div>
+        <form class="auth-form" id="register-form" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="reg-name">Full name <span class="required">*</span></label>
+            <input class="form-control" type="text" id="reg-name"
+                   placeholder="Juan dela Cruz" autocomplete="name" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-email">Email address <span class="required">*</span></label>
+            <input class="form-control" type="email" id="reg-email"
+                   placeholder="you@example.com" autocomplete="email" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-household">Household name <span class="required">*</span></label>
+            <input class="form-control" type="text" id="reg-household"
+                   placeholder="e.g. Dela Cruz Family" required />
+            <span class="form-hint">You can invite members after signing up.</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-password">Password <span class="required">*</span></label>
+            <div class="pw-wrapper">
+              <input class="form-control" type="password" id="reg-password"
+                     placeholder="Min. 8 characters" autocomplete="new-password" required
+                     style="padding-right: 2.5rem;" />
+              <button type="button" class="pw-toggle" id="toggle-reg-pw">👁️</button>
+            </div>
+            <div class="pw-strength-bar-wrapper">
+              <div class="pw-strength-bar" id="pw-strength-bar"></div>
+            </div>
+            <span class="pw-strength-label" id="pw-strength-label"></span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reg-confirm">Confirm password <span class="required">*</span></label>
+            <input class="form-control" type="password" id="reg-confirm"
+                   placeholder="••••••••" autocomplete="new-password" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg w-full">Create Account</button>
+        </form>
+        <div class="auth-footer">
+          Already have an account?
+          <button onclick="document.querySelector('[data-tab=login]').click()"
+                  style="background:none;border:none;color:var(--clr-primary);font-weight:600;cursor:pointer;font-size:inherit;">
+            Sign in
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Forgot Password Modal -->
+<div class="modal-backdrop" id="forgot-modal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3 class="modal-title">Reset Password</h3>
+      <button class="modal-close" id="close-forgot-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:var(--text-sm);color:var(--clr-text-secondary);margin-bottom:var(--space-4);">
+        Enter your email and we'll send you a link to reset your password.
+      </p>
+      <form id="forgot-form">
+        <div class="form-group">
+          <label class="form-label" for="forgot-email">Email address</label>
+          <input class="form-control" type="email" id="forgot-email" placeholder="you@example.com" />
+        </div>
+        <div class="modal-footer" style="padding:0;border:none;margin-top:var(--space-4);">
+          <button type="button" class="btn btn-secondary" id="cancel-forgot">Cancel</button>
+          <button type="submit" class="btn btn-primary">Send Reset Link</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script type="module" src="assets/js/auth.js"></script>
+<script>
+  // Extra pw toggle for register
+  document.getElementById('toggle-reg-pw')?.addEventListener('click', function() {
+    const pw = document.getElementById('reg-password');
+    pw.type = pw.type === 'password' ? 'text' : 'password';
+    this.textContent = pw.type === 'password' ? '👁️' : '🙈';
+  });
+  document.getElementById('cancel-forgot')?.addEventListener('click', () => {
+    document.getElementById('forgot-modal').classList.remove('open');
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reminders — Gastos</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    .reminders-layout {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: var(--space-5);
+      align-items: start;
+    }
+    .reminder-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      transition: background var(--transition-fast);
+      cursor: default;
+    }
+    .reminder-item:last-child { border-bottom: none; }
+    .reminder-item:hover { background: var(--clr-surface-2); }
+    .reminder-item.unread { background: var(--clr-primary-light); }
+    .reminder-item.unread:hover { background: color-mix(in srgb, var(--clr-primary-light) 80%, var(--clr-surface-2)); }
+    .reminder-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--clr-primary);
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+    .reminder-dot.read { background: transparent; border: 1px solid var(--clr-border); }
+    .reminder-icon {
+      width: 40px; height: 40px;
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .reminder-content { flex: 1; min-width: 0; }
+    .reminder-title { font-size: var(--text-sm); font-weight: 600; color: var(--clr-text); }
+    .reminder-meta  { font-size: var(--text-xs); color: var(--clr-text-muted); margin-top: 3px; display: flex; gap: var(--space-3); flex-wrap: wrap; }
+    .reminder-actions { display: flex; gap: var(--space-1); opacity: 0; transition: opacity var(--transition-fast); }
+    .reminder-item:hover .reminder-actions { opacity: 1; }
+    .tab-bar { display: flex; gap: 0; background: var(--clr-surface-2); border-radius: var(--radius-lg); padding: 4px; margin-bottom: var(--space-5); width: fit-content; }
+    .tab-btn { padding: var(--space-2) var(--space-5); border-radius: var(--radius-md); border: none; background: transparent; font-size: var(--text-sm); font-weight: 600; color: var(--clr-text-muted); cursor: pointer; font-family: var(--font-sans); transition: all var(--transition-fast); white-space: nowrap; }
+    .tab-btn.active { background: var(--clr-surface); color: var(--clr-text); box-shadow: var(--shadow-sm); }
+    .upcoming-due-row {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--clr-border);
+    }
+    .upcoming-due-row:last-child { border-bottom: none; }
+    @media (max-width: 900px) {
+      .reminders-layout { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar"></aside>
+  <div class="sidebar-overlay"></div>
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn-hamburger" id="hamburger-btn">☰</button>
+      <span class="topbar-title">Reminders</span>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary btn-sm" id="btn-mark-all-read">Mark all read</button>
+        <button class="btn btn-primary" id="btn-add-reminder">＋ Add Reminder</button>
+        <button class="btn btn-ghost btn-icon" id="theme-toggle"><span id="theme-icon">🌙</span></button>
+      </div>
+    </header>
+    <div class="page-content">
+      <div class="reminders-layout">
+
+        <!-- Left: Notification feed -->
+        <div>
+          <div class="tab-bar">
+            <button class="tab-btn active" data-tab="all">All</button>
+            <button class="tab-btn" data-tab="unread">Unread</button>
+            <button class="tab-btn" data-tab="email">Email</button>
+            <button class="tab-btn" data-tab="in_app">In-App</button>
+          </div>
+
+          <div class="card" style="padding:0;overflow:hidden;" id="reminders-list">
+            <div style="padding:var(--space-8);text-align:center;">
+              <div class="spinner spinner-lg" style="margin:0 auto;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Upcoming dues + Quick add -->
+        <div style="display:flex;flex-direction:column;gap:var(--space-4);">
+          <!-- Upcoming expenses needing reminders -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📅 Upcoming Due</div>
+              <span class="badge badge-warning" id="upcoming-count">0</span>
+            </div>
+            <div id="upcoming-due-list">
+              <div class="skeleton" style="height:56px;border-radius:8px;"></div>
+            </div>
+          </div>
+
+          <!-- Quick reminder form -->
+          <div class="card">
+            <div class="card-title mb-4">⚡ Quick Reminder</div>
+            <div style="display:flex;flex-direction:column;gap:var(--space-3);">
+              <div class="form-group">
+                <label class="form-label">Expense</label>
+                <select class="form-control" id="quick-expense-sel"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Remind at</label>
+                <input class="form-control" type="datetime-local" id="quick-remind-at" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Type</label>
+                <select class="form-control" id="quick-type">
+                  <option value="in_app">In-App only</option>
+                  <option value="email">Email only</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Custom message <span class="form-hint">(optional)</span></label>
+                <input class="form-control" id="quick-message" placeholder="e.g. Don't forget to pay rent!" />
+              </div>
+              <button class="btn btn-primary w-full" id="quick-save-btn">Set Reminder</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<nav class="mobile-bottom-nav"></nav>
+
+<!-- Full add reminder modal -->
+<div class="modal-backdrop" id="reminder-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title" id="reminder-modal-title">Add Reminder</h3>
+      <button class="modal-close" data-close-modal>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Link to Expense <span class="form-hint">(optional)</span></label>
+        <select class="form-control" id="rm-expense"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Link to Recurring <span class="form-hint">(optional)</span></label>
+        <select class="form-control" id="rm-recurring"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Remind At <span class="required">*</span></label>
+        <input class="form-control" type="datetime-local" id="rm-remind-at" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reminder Type</label>
+        <select class="form-control" id="rm-type">
+          <option value="in_app">In-App notification</option>
+          <option value="email">Email notification</option>
+          <option value="both">Both In-App and Email</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-control" id="rm-message" rows="3" placeholder="Custom reminder message…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" id="rm-submit">Save Reminder</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container"></div>
+
+<script type="module">
+import { supabase, formatPHP, formatDate, daysUntil } from './assets/js/supabase.js';
+import { initAppShell, showToast, openModal, closeModal, initModalClose, escHtml, confirm, daysLabel } from './assets/js/utils.js';
+
+let currentUser, currentProfile;
+let allReminders = [], allExpenses = [], allRecurring = [];
+let activeTab = 'all';
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = await initAppShell('reminders');
+  if (!auth) return;
+  currentUser    = auth.user;
+  currentProfile = auth.profile;
+
+  await Promise.all([loadReminders(), loadExpenses(), loadRecurring()]);
+  populateSelects();
+  initTabs();
+  initModalClose('reminder-modal');
+  initAddModal();
+  initQuickReminder();
+
+  document.getElementById('btn-add-reminder')?.addEventListener('click', () => {
+    setDefaultRemindAt();
+    openModal('reminder-modal');
+  });
+
+  document.getElementById('btn-mark-all-read')?.addEventListener('click', markAllRead);
+});
+
+async function loadReminders() {
+  const { data } = await supabase
+    .from('reminders')
+    .select('*, expense:expenses(title, due_date, amount), recurring:recurring_expenses(title)')
+    .eq('profile_id', currentUser.id)
+    .order('remind_at', { ascending: false });
+  allReminders = data ?? [];
+  renderReminders();
+}
+
+async function loadExpenses() {
+  const { data } = await supabase
+    .from('expenses')
+    .select('id, title, due_date, amount')
+    .eq('household_id', currentProfile.household_id)
+    .eq('is_deleted', false)
+    .neq('status', 'paid')
+    .order('due_date', { ascending: true });
+  allExpenses = data ?? [];
+  renderUpcomingDue();
+}
+
+async function loadRecurring() {
+  const { data } = await supabase
+    .from('recurring_expenses')
+    .select('id, title, next_due_date, amount')
+    .eq('household_id', currentProfile.household_id)
+    .eq('is_active', true)
+    .order('next_due_date', { ascending: true });
+  allRecurring = data ?? [];
+}
+
+function populateSelects() {
+  const noExp = '<option value="">— No linked expense —</option>';
+  const noRec = '<option value="">— No linked recurring —</option>';
+
+  const expOpts = allExpenses.map(e =>
+    `<option value="${e.id}">${escHtml(e.title)} (${formatDate(e.due_date ?? '')})</option>`
+  ).join('');
+  const recOpts = allRecurring.map(r =>
+    `<option value="${r.id}">🔁 ${escHtml(r.title)}</option>`
+  ).join('');
+
+  ['rm-expense', 'quick-expense-sel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = noExp + expOpts;
+  });
+  const rmRec = document.getElementById('rm-recurring');
+  if (rmRec) rmRec.innerHTML = noRec + recOpts;
+}
+
+function renderReminders() {
+  const container = document.getElementById('reminders-list');
+  if (!container) return;
+
+  let filtered = allReminders;
+  if (activeTab === 'unread') filtered = allReminders.filter(r => !r.is_read);
+  if (activeTab === 'email')  filtered = allReminders.filter(r => r.type === 'email' || r.type === 'both');
+  if (activeTab === 'in_app') filtered = allReminders.filter(r => r.type === 'in_app' || r.type === 'both');
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state" style="padding:var(--space-8);">
+      <div class="empty-icon">🔔</div>
+      <div class="empty-title">No reminders</div>
+      <div class="empty-text">Set up reminders for upcoming expenses to stay on track.</div>
+    </div>`;
+    return;
+  }
+
+  const typeIcon = { in_app: '🔔', email: '📧', both: '📬' };
+  const now = new Date();
+
+  container.innerHTML = filtered.map(r => {
+    const isPast   = new Date(r.remind_at) < now;
+    const isUnread = !r.is_read;
+    const linked   = r.expense?.title ?? r.recurring?.title ?? null;
+    const bgIcon   = r.type === 'email' ? '📧' : r.type === 'both' ? '📬' : '🔔';
+    const iconBg   = isUnread ? 'var(--clr-primary-light)' : 'var(--clr-surface-2)';
+
+    return `
+      <div class="reminder-item ${isUnread ? 'unread' : ''}">
+        <div class="reminder-dot ${isUnread ? '' : 'read'}"></div>
+        <div class="reminder-icon" style="background:${iconBg};">${bgIcon}</div>
+        <div class="reminder-content">
+          <div class="reminder-title">${escHtml(r.message ?? (linked ? `Reminder: ${linked}` : 'Expense Reminder'))}</div>
+          <div class="reminder-meta">
+            <span>${typeIcon[r.type] ?? '🔔'} ${r.type === 'in_app' ? 'In-App' : r.type === 'email' ? 'Email' : 'Both'}</span>
+            <span>⏰ ${formatDateTime(r.remind_at)}</span>
+            ${linked ? `<span>📎 ${escHtml(linked)}</span>` : ''}
+            ${r.is_sent ? '<span class="badge badge-success" style="font-size:10px;">Sent</span>' : isPast ? '<span class="badge badge-warning" style="font-size:10px;">Pending</span>' : '<span class="badge badge-info" style="font-size:10px;">Scheduled</span>'}
+          </div>
+        </div>
+        <div class="reminder-actions">
+          ${isUnread ? `<button class="btn btn-ghost btn-icon btn-sm" onclick="markRead('${r.id}')" title="Mark read">✓</button>` : ''}
+          <button class="btn btn-ghost btn-icon btn-sm" onclick="deleteReminder('${r.id}')" title="Delete" style="color:var(--clr-danger);">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderUpcomingDue() {
+  const container = document.getElementById('upcoming-due-list');
+  const countEl   = document.getElementById('upcoming-count');
+  if (!container) return;
+
+  const upcoming = allExpenses
+    .filter(e => e.due_date && daysUntil(e.due_date) >= 0 && daysUntil(e.due_date) <= 14)
+    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+
+  if (countEl) countEl.textContent = upcoming.length;
+
+  if (upcoming.length === 0) {
+    container.innerHTML = '<div class="text-sm text-muted" style="padding:var(--space-2) 0;">Nothing due in the next 14 days.</div>';
+    return;
+  }
+
+  container.innerHTML = upcoming.map(e => {
+    const d = daysUntil(e.due_date);
+    const urgency = d === 0 ? 'var(--clr-danger)' : d <= 3 ? 'var(--clr-warning)' : 'var(--clr-text-muted)';
+    return `
+      <div class="upcoming-due-row">
+        <div style="flex:1;min-width:0;">
+          <div class="text-sm font-medium truncate">${escHtml(e.title)}</div>
+          <div class="text-xs" style="color:${urgency};">${daysLabel(d)}</div>
+        </div>
+        <div class="font-mono text-sm font-semibold">${formatPHP(e.amount)}</div>
+        <button class="btn btn-sm btn-secondary" onclick="quickSetReminder('${e.id}')">🔔</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function initTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeTab = btn.dataset.tab;
+      renderReminders();
+    });
+  });
+}
+
+function initQuickReminder() {
+  // Default remind at = tomorrow 9am
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  const el = document.getElementById('quick-remind-at');
+  if (el) el.value = toLocalDatetimeInput(tomorrow);
+
+  document.getElementById('quick-save-btn')?.addEventListener('click', async () => {
+    const expenseId = document.getElementById('quick-expense-sel')?.value || null;
+    const remindAt  = document.getElementById('quick-remind-at')?.value;
+    const type      = document.getElementById('quick-type')?.value ?? 'in_app';
+    const message   = document.getElementById('quick-message')?.value.trim() || null;
+
+    if (!remindAt) { showToast('Please set a reminder date/time.', 'warning'); return; }
+
+    const btn = document.getElementById('quick-save-btn');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+    const { error } = await supabase.from('reminders').insert({
+      expense_id: expenseId || null,
+      profile_id: currentUser.id,
+      remind_at: new Date(remindAt).toISOString(),
+      type, message,
+    });
+
+    if (error) { showToast('Failed to set reminder.', 'error'); }
+    else { showToast('Reminder set!', 'success'); await loadReminders(); }
+
+    btn.disabled = false; btn.textContent = 'Set Reminder';
+  });
+}
+
+function initAddModal() {
+  document.getElementById('rm-submit')?.addEventListener('click', async () => {
+    const expenseId   = document.getElementById('rm-expense')?.value || null;
+    const recurringId = document.getElementById('rm-recurring')?.value || null;
+    const remindAt    = document.getElementById('rm-remind-at')?.value;
+    const type        = document.getElementById('rm-type')?.value ?? 'in_app';
+    const message     = document.getElementById('rm-message')?.value.trim() || null;
+
+    if (!remindAt) { showToast('Please set a date and time.', 'warning'); return; }
+
+    const btn = document.getElementById('rm-submit');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+    const { error } = await supabase.from('reminders').insert({
+      expense_id:           expenseId || null,
+      recurring_expense_id: recurringId || null,
+      profile_id:           currentUser.id,
+      remind_at:            new Date(remindAt).toISOString(),
+      type, message,
+    });
+
+    if (error) { showToast('Failed to save reminder.', 'error'); }
+    else { showToast('Reminder saved!', 'success'); closeModal('reminder-modal'); await loadReminders(); }
+
+    btn.disabled = false; btn.textContent = 'Save Reminder';
+  });
+}
+
+window.quickSetReminder = function(expenseId) {
+  document.getElementById('quick-expense-sel').value = expenseId;
+  document.getElementById('quick-remind-at').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.markRead = async function(id) {
+  await supabase.from('reminders').update({ is_read: true }).eq('id', id);
+  await loadReminders();
+};
+
+window.deleteReminder = async function(id) {
+  const ok = await confirm('Delete this reminder?', 'Delete');
+  if (!ok) return;
+  await supabase.from('reminders').delete().eq('id', id);
+  showToast('Reminder deleted.', 'info');
+  await loadReminders();
+};
+
+async function markAllRead() {
+  await supabase.from('reminders').update({ is_read: true }).eq('profile_id', currentUser.id).eq('is_read', false);
+  showToast('All marked as read.', 'success');
+  await loadReminders();
+}
+
+function setDefaultRemindAt() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  const el = document.getElementById('rm-remind-at');
+  if (el) el.value = toLocalDatetimeInput(tomorrow);
+}
+
+function toLocalDatetimeInput(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatDateTime(str) {
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(new Date(str));
+}
+</script>
+</body>
+</html>

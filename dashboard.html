@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — Gastos</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+    .dashboard-main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+    }
+    .dashboard-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--space-4);
+    }
+    .chart-container { position: relative; height: 240px; }
+    .budget-row { display: flex; flex-direction: column; gap: var(--space-3); }
+    .budget-item {}
+    .budget-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
+    .budget-label { font-size: var(--text-sm); font-weight: 500; display: flex; align-items: center; gap: var(--space-2); }
+    .budget-amounts { font-size: var(--text-xs); color: var(--clr-text-muted); font-family: var(--font-mono); }
+    .upcoming-list { display: flex; flex-direction: column; gap: var(--space-3); }
+    .upcoming-item {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3);
+      background: var(--clr-surface-2);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--clr-border);
+    }
+    .upcoming-item.urgent { border-left-color: var(--clr-danger); }
+    .upcoming-item.soon   { border-left-color: var(--clr-warning); }
+    .upcoming-item.ok     { border-left-color: var(--clr-success); }
+    .upcoming-info { flex: 1; min-width: 0; }
+    .upcoming-title { font-size: var(--text-sm); font-weight: 600; color: var(--clr-text); }
+    .upcoming-due   { font-size: var(--text-xs); color: var(--clr-text-muted); margin-top: 2px; }
+    .upcoming-amount { font-family: var(--font-mono); font-weight: 700; font-size: var(--text-sm); white-space: nowrap; }
+    .split-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--clr-border); }
+    .split-row:last-child { border-bottom: none; }
+    .split-direction { font-size: var(--text-xs); font-weight: 600; }
+    .split-direction.owe  { color: var(--clr-danger); }
+    .split-direction.owed { color: var(--clr-success); }
+    .recurring-item { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--clr-border); }
+    .recurring-item:last-child { border-bottom: none; }
+    .monthly-total-ring { display: flex; align-items: center; justify-content: center; gap: var(--space-6); }
+    .ring-label { text-align: center; }
+    .ring-value { font-size: var(--text-2xl); font-weight: 700; font-family: var(--font-mono); color: var(--clr-text); }
+    .ring-sub { font-size: var(--text-xs); color: var(--clr-text-muted); margin-top: 2px; }
+
+    @media (max-width: 1200px) {
+      .dashboard-grid { grid-template-columns: 1fr 1fr; }
+      .dashboard-main { grid-template-columns: 1fr; }
+      .dashboard-bottom { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 768px) {
+      .dashboard-grid { grid-template-columns: 1fr 1fr; }
+      .dashboard-bottom { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar"></aside>
+  <div class="sidebar-overlay"></div>
+
+  <main class="main-content">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <button class="btn-hamburger" id="hamburger-btn">☰</button>
+      <span class="topbar-title">Dashboard</span>
+      <div class="topbar-actions">
+        <select class="filter-select" id="month-filter" style="font-weight:600;"></select>
+        <button class="btn btn-ghost btn-icon" id="theme-toggle" title="Toggle theme">
+          <span id="theme-icon">🌙</span>
+        </button>
+        <button class="btn btn-ghost btn-icon" title="Notifications" onclick="window.location='reminders.html'">
+          🔔
+        </button>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+      <!-- KPI Stat Cards -->
+      <div class="dashboard-grid" id="kpi-grid">
+        <div class="stat-card skeleton" style="height:110px;--card-accent:var(--clr-primary);"></div>
+        <div class="stat-card skeleton" style="height:110px;--card-accent:var(--clr-danger);"></div>
+        <div class="stat-card skeleton" style="height:110px;--card-accent:var(--clr-warning);"></div>
+        <div class="stat-card skeleton" style="height:110px;--card-accent:var(--clr-success);"></div>
+      </div>
+
+      <!-- Main Charts Row -->
+      <div class="dashboard-main">
+        <!-- Category Breakdown -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Spending by Category</div>
+              <div class="card-subtitle">This month's distribution</div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="category-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Budget vs Actual -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Budget vs. Actual</div>
+              <div class="card-subtitle">Category spending limits</div>
+            </div>
+            <a href="settings.html#budgets" class="btn btn-ghost btn-sm">Manage</a>
+          </div>
+          <div class="budget-row" id="budget-rows">
+            <div class="skeleton" style="height:48px;border-radius:8px;"></div>
+            <div class="skeleton" style="height:48px;border-radius:8px;"></div>
+            <div class="skeleton" style="height:48px;border-radius:8px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Row -->
+      <div class="dashboard-bottom">
+        <!-- Upcoming Due -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Due This Week</div>
+              <div class="card-subtitle">Next 7 days</div>
+            </div>
+            <a href="expenses.html" class="btn btn-ghost btn-sm">View all</a>
+          </div>
+          <div class="upcoming-list" id="upcoming-list">
+            <div class="skeleton" style="height:64px;border-radius:8px;"></div>
+            <div class="skeleton" style="height:64px;border-radius:8px;"></div>
+          </div>
+        </div>
+
+        <!-- Splits Summary -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Who Owes Who</div>
+              <div class="card-subtitle">Unsettled balances</div>
+            </div>
+            <a href="splits.html" class="btn btn-ghost btn-sm">Settle up</a>
+          </div>
+          <div id="splits-summary">
+            <div class="skeleton" style="height:56px;border-radius:8px;"></div>
+          </div>
+        </div>
+
+        <!-- Recurring Overview -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">Recurring Expenses</div>
+              <div class="card-subtitle">Active automations</div>
+            </div>
+            <a href="recurring.html" class="btn btn-ghost btn-sm">Manage</a>
+          </div>
+          <div id="recurring-overview">
+            <div class="skeleton" style="height:56px;border-radius:8px;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Mobile Bottom Nav -->
+<nav class="mobile-bottom-nav"></nav>
+
+<!-- FAB -->
+<button class="fab" id="fab-add" title="Add expense">＋</button>
+
+<!-- Quick Add Expense Modal -->
+<div class="modal-backdrop" id="quick-add-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 class="modal-title">Quick Add Expense</h3>
+      <button class="modal-close" data-close-modal>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Title <span class="required">*</span></label>
+        <input class="form-control" id="qa-title" placeholder="e.g. Grocery run" />
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <div class="input-group">
+            <span class="input-prefix">₱</span>
+            <input class="form-control has-prefix" id="qa-amount" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input class="form-control" id="qa-date" type="date" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-control" id="qa-category"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Due Date</label>
+        <input class="form-control" id="qa-due-date" type="date" />
+      </div>
+      <div class="flex items-center gap-3" style="padding:var(--space-2) 0;">
+        <label class="toggle-switch">
+          <input type="checkbox" id="qa-split-toggle" />
+          <span class="toggle-track"></span>
+          <span class="text-sm font-medium">Split this expense</span>
+        </label>
+      </div>
+      <div id="qa-split-section" class="hidden">
+        <div class="section-title">Split with</div>
+        <div id="qa-split-members"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-secondary" onclick="window.location='expenses.html'">Full form →</button>
+      <button class="btn btn-primary" id="qa-submit">Add Expense</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container"></div>
+<script type="module" src="assets/js/dashboard.js"></script>
+</body>
+</html>

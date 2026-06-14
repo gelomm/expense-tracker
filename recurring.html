@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recurring — Gastos</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    .recurring-card {
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: var(--space-4);
+      align-items: center;
+      transition: box-shadow var(--transition-fast);
+    }
+    .recurring-card:hover { box-shadow: var(--shadow-md); }
+    .recurring-card.inactive { opacity: 0.55; }
+    .freq-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: var(--radius-full);
+      font-size: var(--text-xs); font-weight: 600;
+      background: var(--clr-primary-light); color: var(--clr-primary-dark);
+    }
+    .rc-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-top: var(--space-2); }
+    .rc-actions { display: flex; gap: var(--space-2); align-items: center; }
+    .rc-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+    .section-filters { display: flex; gap: var(--space-3); margin-bottom: var(--space-5); flex-wrap: wrap; }
+    .rc-summary-bar {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--space-4); margin-bottom: var(--space-5);
+    }
+    @media (max-width: 768px) {
+      .recurring-card { grid-template-columns: 1fr; }
+      .rc-actions { justify-content: flex-start; }
+      .rc-summary-bar { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar"></aside>
+  <div class="sidebar-overlay"></div>
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn-hamburger" id="hamburger-btn">☰</button>
+      <span class="topbar-title">Recurring Expenses</span>
+      <div class="topbar-actions">
+        <button class="btn btn-primary" id="btn-add-recurring">＋ Add Recurring</button>
+        <button class="btn btn-ghost btn-icon" id="theme-toggle"><span id="theme-icon">🌙</span></button>
+      </div>
+    </header>
+    <div class="page-content">
+      <!-- Summary -->
+      <div class="rc-summary-bar" id="rc-summary">
+        <div class="stat-card skeleton" style="height:90px;"></div>
+        <div class="stat-card skeleton" style="height:90px;"></div>
+        <div class="stat-card skeleton" style="height:90px;"></div>
+      </div>
+      <!-- Filters -->
+      <div class="section-filters">
+        <select class="filter-select" id="filter-freq">
+          <option value="">All Frequencies</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Bi-weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="bimonthly">Bi-monthly</option>
+          <option value="annually">Annually</option>
+        </select>
+        <select class="filter-select" id="filter-rc-status">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <!-- List -->
+      <div class="rc-grid" id="rc-grid">
+        <div class="skeleton" style="height:90px;border-radius:12px;"></div>
+        <div class="skeleton" style="height:90px;border-radius:12px;"></div>
+        <div class="skeleton" style="height:90px;border-radius:12px;"></div>
+      </div>
+    </div>
+  </main>
+</div>
+<nav class="mobile-bottom-nav"></nav>
+<button class="fab" id="fab-add">＋</button>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-backdrop" id="rc-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3 class="modal-title" id="rc-modal-title">Add Recurring Expense</h3>
+      <button class="modal-close" data-close-modal>✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row form-row-2">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Title <span class="required">*</span></label>
+          <input class="form-control" id="rc-title" placeholder="e.g. Monthly Rent" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <div class="input-group">
+            <span class="input-prefix">₱</span>
+            <input class="form-control has-prefix" id="rc-amount" type="number" min="0" step="0.01" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select class="form-control" id="rc-category"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Frequency <span class="required">*</span></label>
+          <select class="form-control" id="rc-frequency">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi-weekly (every 2 weeks)</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="bimonthly">Bi-monthly (every 2 months)</option>
+            <option value="annually">Annually</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Paid By</label>
+          <select class="form-control" id="rc-paid-by"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Start Date <span class="required">*</span></label>
+          <input class="form-control" id="rc-start-date" type="date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date <span class="form-hint">(leave blank = forever)</span></label>
+          <input class="form-control" id="rc-end-date" type="date" />
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Notes</label>
+          <textarea class="form-control" id="rc-notes" rows="2" placeholder="Optional notes…"></textarea>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Split config -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="font-semibold">Split this recurring expense</div>
+            <div class="text-xs text-muted">Auto-split every generated instance</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="rc-split-toggle" />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+        <div id="rc-split-section" class="hidden">
+          <div id="rc-split-members"></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" id="rc-submit">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container"></div>
+<script type="module">
+import { supabase, formatPHP, formatDate, daysUntil } from './assets/js/supabase.js';
+import { initAppShell, showToast, openModal, closeModal, initModalClose, categoryBadge, escHtml, confirm, frequencyLabel, daysLabel } from './assets/js/utils.js';
+
+let currentUser, currentProfile;
+let editingId = null;
+let allMembers = [];
+let allRecurring = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = await initAppShell('recurring');
+  if (!auth) return;
+  currentUser    = auth.user;
+  currentProfile = auth.profile;
+
+  await Promise.all([loadCategories(), loadMembers()]);
+  await loadRecurring();
+
+  initModalClose('rc-modal');
+  initModal();
+  document.getElementById('btn-add-recurring')?.addEventListener('click', openAdd);
+  document.getElementById('fab-add')?.addEventListener('click', openAdd);
+  document.getElementById('filter-freq')?.addEventListener('change', renderList);
+  document.getElementById('filter-rc-status')?.addEventListener('change', renderList);
+});
+
+async function loadCategories() {
+  const { data } = await supabase.from('categories').select('*')
+    .or(`household_id.is.null,household_id.eq.${currentProfile.household_id}`).order('name');
+  const sel = document.getElementById('rc-category');
+  if (sel) sel.innerHTML = '<option value="">— No category —</option>' +
+    (data ?? []).map(c => `<option value="${c.id}">${c.icon} ${escHtml(c.name)}</option>`).join('');
+}
+
+async function loadMembers() {
+  const { data } = await supabase.from('profiles').select('id, full_name').eq('household_id', currentProfile.household_id);
+  allMembers = data ?? [];
+  const sel = document.getElementById('rc-paid-by');
+  if (sel) sel.innerHTML = allMembers.map(m =>
+    `<option value="${m.id}" ${m.id === currentUser.id ? 'selected' : ''}>${escHtml(m.full_name)}</option>`
+  ).join('');
+}
+
+async function loadRecurring() {
+  const { data } = await supabase.from('recurring_expenses')
+    .select('*, category:categories(*), payer:profiles!recurring_expenses_paid_by_fkey(id, full_name)')
+    .eq('household_id', currentProfile.household_id)
+    .order('next_due_date', { ascending: true });
+  allRecurring = data ?? [];
+  renderSummary(allRecurring);
+  renderList();
+}
+
+function renderSummary(list) {
+  const active   = list.filter(r => r.is_active);
+  const inactive = list.filter(r => !r.is_active);
+  const monthly  = active.reduce((s, r) => {
+    const mults = { daily:30, weekly:4.33, biweekly:2.17, monthly:1, bimonthly:0.5, annually:1/12 };
+    return s + Number(r.amount) * (mults[r.frequency] ?? 1);
+  }, 0);
+
+  document.getElementById('rc-summary').innerHTML = `
+    <div class="stat-card" style="--card-accent:var(--clr-primary);">
+      <div class="stat-icon" style="background:var(--clr-primary-light);">🔁</div>
+      <div class="stat-label">Active Plans</div>
+      <div class="stat-value">${active.length}</div>
+    </div>
+    <div class="stat-card" style="--card-accent:var(--clr-accent);">
+      <div class="stat-icon" style="background:var(--clr-accent-light);">💰</div>
+      <div class="stat-label">Est. Monthly Cost</div>
+      <div class="stat-value" style="font-size:var(--text-xl);">${formatPHP(monthly)}</div>
+    </div>
+    <div class="stat-card" style="--card-accent:var(--clr-text-muted);">
+      <div class="stat-icon" style="background:var(--clr-surface-2);">⏸️</div>
+      <div class="stat-label">Inactive Plans</div>
+      <div class="stat-value">${inactive.length}</div>
+    </div>
+  `;
+}
+
+function renderList() {
+  const freq   = document.getElementById('filter-freq')?.value ?? '';
+  const status = document.getElementById('filter-rc-status')?.value ?? '';
+  const grid   = document.getElementById('rc-grid');
+  if (!grid) return;
+
+  let filtered = allRecurring.filter(r => {
+    if (freq && r.frequency !== freq) return false;
+    if (status === 'active' && !r.is_active) return false;
+    if (status === 'inactive' && r.is_active) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🔁</div>
+      <div class="empty-title">No recurring expenses</div>
+      <div class="empty-text">Add your first recurring bill or subscription.</div>
+      <button class="btn btn-primary" style="margin-top:var(--space-4);" onclick="document.getElementById('btn-add-recurring').click()">Add Recurring</button>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(r => {
+    const nextDue  = daysUntil(r.next_due_date);
+    const urgency  = nextDue <= 0 ? 'var(--clr-danger)' : nextDue <= 7 ? 'var(--clr-warning)' : 'var(--clr-success)';
+
+    return `
+      <div class="recurring-card ${r.is_active ? '' : 'inactive'}">
+        <span style="font-size:2rem;">${r.category?.icon ?? '🔁'}</span>
+        <div style="min-width:0;">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-semibold text-lg">${escHtml(r.title)}</span>
+            <span class="freq-badge">${frequencyLabel(r.frequency)}</span>
+            ${!r.is_active ? '<span class="badge badge-neutral">Paused</span>' : ''}
+          </div>
+          <div class="rc-meta">
+            ${categoryBadge(r.category)}
+            <span class="text-sm text-muted">Paid by <strong>${escHtml(r.payer?.full_name ?? 'Unknown')}</strong></span>
+            <span class="text-sm" style="color:${urgency};">Next: ${formatDate(r.next_due_date)} (${daysLabel(nextDue)})</span>
+            ${r.end_date ? `<span class="text-xs text-muted">Ends ${formatDate(r.end_date)}</span>` : ''}
+          </div>
+        </div>
+        <div class="rc-actions">
+          <div style="text-align:right;">
+            <div class="font-mono font-bold text-xl">${formatPHP(r.amount)}</div>
+            <div class="text-xs text-muted">per ${r.frequency === 'bimonthly' ? '2 months' : r.frequency === 'biweekly' ? '2 weeks' : r.frequency.replace('ally','')}</div>
+          </div>
+          <button class="btn btn-ghost btn-icon" onclick="editRc('${r.id}')" title="Edit">✏️</button>
+          <button class="btn btn-ghost btn-icon" onclick="toggleRc('${r.id}', ${r.is_active})" title="${r.is_active ? 'Pause' : 'Resume'}">
+            ${r.is_active ? '⏸️' : '▶️'}
+          </button>
+          <button class="btn btn-ghost btn-icon" onclick="generateNow('${r.id}')" title="Generate now" style="color:var(--clr-primary);">⚡</button>
+          <button class="btn btn-ghost btn-icon" onclick="deleteRc('${r.id}')" title="Delete" style="color:var(--clr-danger);">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function openAdd() {
+  editingId = null;
+  document.getElementById('rc-modal-title').textContent = 'Add Recurring Expense';
+  document.getElementById('rc-title').value      = '';
+  document.getElementById('rc-amount').value     = '';
+  document.getElementById('rc-notes').value      = '';
+  document.getElementById('rc-frequency').value  = 'monthly';
+  document.getElementById('rc-start-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('rc-end-date').value   = '';
+  document.getElementById('rc-split-toggle').checked = false;
+  document.getElementById('rc-split-section').classList.add('hidden');
+  openModal('rc-modal');
+}
+
+window.editRc = async function(id) {
+  const r = allRecurring.find(x => x.id === id);
+  if (!r) return;
+  editingId = id;
+  document.getElementById('rc-modal-title').textContent = 'Edit Recurring Expense';
+  document.getElementById('rc-title').value      = r.title;
+  document.getElementById('rc-amount').value     = r.amount;
+  document.getElementById('rc-notes').value      = r.notes ?? '';
+  document.getElementById('rc-frequency').value  = r.frequency;
+  document.getElementById('rc-start-date').value = r.start_date;
+  document.getElementById('rc-end-date').value   = r.end_date ?? '';
+  document.getElementById('rc-category').value   = r.category_id ?? '';
+  document.getElementById('rc-paid-by').value    = r.paid_by ?? currentUser.id;
+
+  if (r.split_config?.length > 0) {
+    document.getElementById('rc-split-toggle').checked = true;
+    document.getElementById('rc-split-section').classList.remove('hidden');
+    renderRcSplitMembers();
+  }
+  openModal('rc-modal');
+};
+
+window.toggleRc = async function(id, isActive) {
+  const { error } = await supabase.from('recurring_expenses').update({ is_active: !isActive }).eq('id', id);
+  if (error) { showToast('Failed to update.', 'error'); return; }
+  showToast(isActive ? 'Recurring expense paused.' : 'Recurring expense resumed.', 'success');
+  await loadRecurring();
+};
+
+window.generateNow = async function(id) {
+  const r = allRecurring.find(x => x.id === id);
+  if (!r) return;
+  const { data: exp, error } = await supabase.from('expenses').insert({
+    household_id: r.household_id,
+    title: r.title,
+    amount: r.amount,
+    category_id: r.category_id,
+    paid_by: r.paid_by,
+    expense_date: new Date().toISOString().split('T')[0],
+    due_date: r.next_due_date,
+    is_recurring: true,
+    recurring_id: r.id,
+    status: 'unpaid',
+    created_by: currentUser.id,
+  }).select().single();
+  if (error) { showToast('Failed to generate expense.', 'error'); return; }
+  showToast('Expense generated!', 'success');
+};
+
+window.deleteRc = async function(id) {
+  const ok = await confirm('Delete this recurring expense? All future instances will stop.', 'Delete Recurring');
+  if (!ok) return;
+  await supabase.from('recurring_expenses').delete().eq('id', id);
+  showToast('Recurring expense deleted.', 'info');
+  await loadRecurring();
+};
+
+function initModal() {
+  document.getElementById('rc-split-toggle')?.addEventListener('change', (e) => {
+    const section = document.getElementById('rc-split-section');
+    if (e.target.checked) { section.classList.remove('hidden'); renderRcSplitMembers(); }
+    else section.classList.add('hidden');
+  });
+
+  document.getElementById('rc-submit')?.addEventListener('click', async () => {
+    const title     = document.getElementById('rc-title')?.value.trim();
+    const amount    = parseFloat(document.getElementById('rc-amount')?.value);
+    const frequency = document.getElementById('rc-frequency')?.value;
+    const startDate = document.getElementById('rc-start-date')?.value;
+    const endDate   = document.getElementById('rc-end-date')?.value || null;
+    const catId     = document.getElementById('rc-category')?.value || null;
+    const paidBy    = document.getElementById('rc-paid-by')?.value || currentUser.id;
+    const notes     = document.getElementById('rc-notes')?.value.trim() || null;
+
+    if (!title || isNaN(amount) || amount <= 0 || !frequency || !startDate) {
+      showToast('Title, amount, frequency, and start date are required.', 'warning'); return;
+    }
+
+    const btn = document.getElementById('rc-submit');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+    // Build split config
+    let splitConfig = [];
+    if (document.getElementById('rc-split-toggle')?.checked) {
+      const checks = document.querySelectorAll('.rc-split-check:checked');
+      const equalAmt = amount / (checks.length + 1);
+      splitConfig = [...checks].map(c => ({
+        profile_id: c.value,
+        split_type: 'equal',
+        amount: equalAmt,
+      }));
+    }
+
+    const payload = {
+      household_id: currentProfile.household_id,
+      title, amount, frequency,
+      start_date: startDate,
+      end_date: endDate,
+      next_due_date: startDate,
+      category_id: catId,
+      paid_by: paidBy,
+      notes,
+      split_config: splitConfig,
+      is_active: true,
+      created_by: currentUser.id,
+    };
+
+    if (editingId) {
+      const { error } = await supabase.from('recurring_expenses').update(payload).eq('id', editingId);
+      if (error) { showToast('Failed to update.', 'error'); btn.disabled=false; btn.textContent='Save'; return; }
+    } else {
+      const { error } = await supabase.from('recurring_expenses').insert(payload);
+      if (error) { showToast('Failed to create.', 'error'); btn.disabled=false; btn.textContent='Save'; return; }
+    }
+
+    showToast(editingId ? 'Updated!' : 'Recurring expense created!', 'success');
+    closeModal('rc-modal');
+    await loadRecurring();
+    btn.disabled = false; btn.textContent = 'Save';
+  });
+}
+
+function renderRcSplitMembers() {
+  const container = document.getElementById('rc-split-members');
+  if (!container) return;
+  const others = allMembers.filter(m => m.id !== currentUser.id);
+  if (others.length === 0) { container.innerHTML = '<p class="text-sm text-muted">No other members.</p>'; return; }
+  container.innerHTML = others.map(m => `
+    <label class="form-check" style="padding:var(--space-2) 0; border-bottom:1px solid var(--clr-border);">
+      <input type="checkbox" class="rc-split-check" value="${m.id}" checked />
+      <div class="avatar" style="width:28px;height:28px;font-size:0.65rem;">${m.full_name[0].toUpperCase()}</div>
+      <span class="form-check-label">${escHtml(m.full_name)}</span>
+      <span class="ml-auto text-xs text-muted">Equal split</span>
+    </label>
+  `).join('');
+}
+</script>
+</body>
+</html>

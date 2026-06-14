@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Gastos</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: var(--space-5);
+      align-items: start;
+    }
+    .settings-nav {
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-2);
+      position: sticky;
+      top: calc(var(--topbar-height) + var(--space-6));
+    }
+    .settings-nav-item {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm); font-weight: 500;
+      color: var(--clr-text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      border: none; background: none; width: 100%; text-align: left;
+      font-family: var(--font-sans);
+    }
+    .settings-nav-item:hover { background: var(--clr-surface-2); color: var(--clr-text); }
+    .settings-nav-item.active { background: var(--clr-primary-light); color: var(--clr-primary); font-weight: 600; }
+    .settings-panel { display: none; }
+    .settings-panel.active { display: block; }
+    .settings-section-title {
+      font-size: var(--text-xl); font-weight: 700; color: var(--clr-text);
+      letter-spacing: -0.02em; margin-bottom: var(--space-2);
+    }
+    .settings-section-sub { font-size: var(--text-sm); color: var(--clr-text-muted); margin-bottom: var(--space-6); }
+
+    /* Category / Tag grid */
+    .tag-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+    .tag-item {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-full);
+      font-size: var(--text-sm); font-weight: 500;
+      border: 1px solid transparent;
+    }
+    .tag-item .delete-tag {
+      background: none; border: none; cursor: pointer;
+      font-size: 0.7rem; opacity: 0.6; padding: 0; line-height: 1;
+      transition: opacity var(--transition-fast);
+    }
+    .tag-item .delete-tag:hover { opacity: 1; }
+    .cat-table-row {
+      display: grid; grid-template-columns: 40px 1fr auto auto;
+      gap: var(--space-3); align-items: center;
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--clr-border);
+    }
+    .cat-table-row:last-child { border-bottom: none; }
+    .cat-table-row:hover { background: var(--clr-surface-2); }
+    .member-row {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--clr-border);
+    }
+    .member-row:last-child { border-bottom: none; }
+    .budget-grid { display: flex; flex-direction: column; gap: var(--space-3); }
+    .budget-edit-row {
+      display: grid; grid-template-columns: 1fr 160px;
+      gap: var(--space-3); align-items: center;
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--clr-border);
+    }
+    .budget-edit-row:last-child { border-bottom: none; }
+
+    .color-picker-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .color-swatch {
+      width: 24px; height: 24px; border-radius: 50%;
+      cursor: pointer; border: 2px solid transparent;
+      transition: transform var(--transition-fast);
+    }
+    .color-swatch:hover { transform: scale(1.2); }
+    .color-swatch.selected { border-color: var(--clr-text); }
+
+    @media (max-width: 768px) {
+      .settings-layout { grid-template-columns: 1fr; }
+      .settings-nav { position: static; display: flex; overflow-x: auto; flex-direction: row; gap: 0; }
+      .settings-nav-item { white-space: nowrap; flex-shrink: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar"></aside>
+  <div class="sidebar-overlay"></div>
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn-hamburger" id="hamburger-btn">☰</button>
+      <span class="topbar-title">Settings</span>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost btn-icon" id="theme-toggle"><span id="theme-icon">🌙</span></button>
+      </div>
+    </header>
+    <div class="page-content">
+      <div class="settings-layout">
+
+        <!-- Left nav -->
+        <nav class="settings-nav">
+          <button class="settings-nav-item active" data-section="profile">👤 Profile</button>
+          <button class="settings-nav-item" data-section="household">🏠 Household</button>
+          <button class="settings-nav-item" data-section="members">👥 Members</button>
+          <button class="settings-nav-item" data-section="categories">📂 Categories</button>
+          <button class="settings-nav-item" data-section="tags">🏷️ Tags</button>
+          <button class="settings-nav-item" data-section="budgets" id="nav-budgets">🎯 Budgets</button>
+          <button class="settings-nav-item" data-section="export">⬇️ Export Data</button>
+          <button class="settings-nav-item" data-section="danger" style="color:var(--clr-danger);">⚠️ Danger Zone</button>
+        </nav>
+
+        <!-- Right panels -->
+        <div>
+
+          <!-- PROFILE -->
+          <div class="settings-panel active card" id="panel-profile">
+            <div class="settings-section-title">Profile</div>
+            <div class="settings-section-sub">Manage your personal information and preferences.</div>
+            <div class="flex items-center gap-4 mb-6">
+              <div class="avatar avatar-xl" id="profile-avatar-preview">U</div>
+              <div>
+                <div class="font-semibold" id="profile-name-display">Loading…</div>
+                <div class="text-sm text-muted" id="profile-email-display"></div>
+                <div class="badge badge-primary mt-2" id="profile-role-display"></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:var(--space-4);">
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input class="form-control" id="setting-name" placeholder="Your full name" />
+              </div>
+              <div class="form-row form-row-2">
+                <div class="form-group">
+                  <label class="form-label">Currency</label>
+                  <select class="form-control" id="setting-currency">
+                    <option value="PHP" selected>🇵🇭 PHP — Philippine Peso</option>
+                    <option value="USD">🇺🇸 USD — US Dollar</option>
+                    <option value="EUR">🇪🇺 EUR — Euro</option>
+                    <option value="SGD">🇸🇬 SGD — Singapore Dollar</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Theme</label>
+                  <select class="form-control" id="setting-theme">
+                    <option value="light">☀️ Light</option>
+                    <option value="dark">🌙 Dark</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-primary" id="save-profile-btn">Save Profile</button>
+            </div>
+            <div class="divider"></div>
+            <div class="settings-section-title" style="font-size:var(--text-lg);">Change Password</div>
+            <div style="display:flex;flex-direction:column;gap:var(--space-4);margin-top:var(--space-4);">
+              <div class="form-group">
+                <label class="form-label">New Password</label>
+                <input class="form-control" id="new-password" type="password" placeholder="Min. 8 characters" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Confirm New Password</label>
+                <input class="form-control" id="confirm-password" type="password" placeholder="Repeat password" />
+              </div>
+              <button class="btn btn-secondary" id="save-password-btn">Update Password</button>
+            </div>
+          </div>
+
+          <!-- HOUSEHOLD -->
+          <div class="settings-panel card" id="panel-household">
+            <div class="settings-section-title">Household</div>
+            <div class="settings-section-sub">Manage your shared household settings.</div>
+            <div style="display:flex;flex-direction:column;gap:var(--space-4);">
+              <div class="form-group">
+                <label class="form-label">Household Name</label>
+                <input class="form-control" id="household-name" placeholder="e.g. Dela Cruz Family" />
+              </div>
+              <button class="btn btn-primary" id="save-household-btn">Save Changes</button>
+            </div>
+          </div>
+
+          <!-- MEMBERS -->
+          <div class="settings-panel card" id="panel-members">
+            <div class="settings-section-title">Members</div>
+            <div class="settings-section-sub">Invite family members to share expenses.</div>
+
+            <!-- Invite form -->
+            <div class="card" style="border:1px dashed var(--clr-border);background:var(--clr-surface-2);margin-bottom:var(--space-5);">
+              <div class="font-semibold mb-3">✉️ Invite via Email</div>
+              <div class="flex gap-3" style="flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:200px;">
+                  <input class="form-control" id="invite-email" type="email" placeholder="member@example.com" />
+                </div>
+                <button class="btn btn-primary" id="send-invite-btn">Send Invite</button>
+              </div>
+              <div class="text-xs text-muted mt-2">They'll receive an email with a link to join your household.</div>
+            </div>
+
+            <!-- Pending invites -->
+            <div class="section-title mb-3">Pending Invites</div>
+            <div class="card" style="padding:0;overflow:hidden;margin-bottom:var(--space-5);" id="pending-invites">
+              <div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">Loading…</div>
+            </div>
+
+            <!-- Current members -->
+            <div class="section-title mb-3">Current Members</div>
+            <div class="card" style="padding:0;overflow:hidden;" id="members-list">
+              <div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">Loading…</div>
+            </div>
+          </div>
+
+          <!-- CATEGORIES -->
+          <div class="settings-panel card" id="panel-categories">
+            <div class="settings-section-title">Categories</div>
+            <div class="settings-section-sub">Customize expense categories for your household.</div>
+
+            <!-- Add new -->
+            <div class="card" style="background:var(--clr-surface-2);border:1px dashed var(--clr-border);margin-bottom:var(--space-5);">
+              <div class="font-semibold mb-3">Add Custom Category</div>
+              <div class="form-row form-row-3" style="gap:var(--space-3);">
+                <div class="form-group">
+                  <label class="form-label">Icon <span class="form-hint">(emoji)</span></label>
+                  <input class="form-control" id="new-cat-icon" maxlength="4" placeholder="📦" style="font-size:1.3rem;text-align:center;" />
+                </div>
+                <div class="form-group" style="grid-column:2/4;">
+                  <label class="form-label">Name</label>
+                  <input class="form-control" id="new-cat-name" placeholder="Category name" />
+                </div>
+              </div>
+              <div class="form-group mt-2">
+                <label class="form-label">Color</label>
+                <div class="color-picker-row" id="cat-color-picker"></div>
+                <input type="hidden" id="new-cat-color" value="#4F46E5" />
+              </div>
+              <button class="btn btn-primary mt-4" id="add-cat-btn">Add Category</button>
+            </div>
+
+            <!-- Default categories -->
+            <div class="section-title mb-3">Default Categories</div>
+            <div class="card" style="padding:0;overflow:hidden;margin-bottom:var(--space-4);" id="default-categories"></div>
+
+            <!-- Custom categories -->
+            <div class="section-title mb-3">Custom Categories</div>
+            <div class="card" style="padding:0;overflow:hidden;" id="custom-categories">
+              <div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">No custom categories yet.</div>
+            </div>
+          </div>
+
+          <!-- TAGS -->
+          <div class="settings-panel card" id="panel-tags">
+            <div class="settings-section-title">Tags</div>
+            <div class="settings-section-sub">Tags help you filter and group expenses across categories.</div>
+
+            <div class="card" style="background:var(--clr-surface-2);border:1px dashed var(--clr-border);margin-bottom:var(--space-5);">
+              <div class="font-semibold mb-3">Add Custom Tag</div>
+              <div class="flex gap-3" style="flex-wrap:wrap;align-items:flex-end;">
+                <div class="form-group" style="flex:1;min-width:150px;">
+                  <label class="form-label">Tag Name</label>
+                  <input class="form-control" id="new-tag-name" placeholder="e.g. Home Office" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Color</label>
+                  <input type="color" id="new-tag-color" value="#4F46E5" style="width:44px;height:40px;border:none;background:none;cursor:pointer;padding:0;" />
+                </div>
+                <button class="btn btn-primary" id="add-tag-btn" style="margin-bottom:1px;">Add Tag</button>
+              </div>
+            </div>
+
+            <div class="section-title mb-3">Default Tags</div>
+            <div class="tag-grid" id="default-tags"></div>
+
+            <div class="section-title mb-3">Custom Tags</div>
+            <div class="tag-grid" id="custom-tags">
+              <div class="text-sm text-muted">No custom tags yet.</div>
+            </div>
+          </div>
+
+          <!-- BUDGETS -->
+          <div class="settings-panel card" id="panel-budgets">
+            <div class="settings-section-title">Monthly Budgets</div>
+            <div class="settings-section-sub">Set spending limits per category to track your goals.</div>
+            <div class="flex items-center gap-3 mb-5">
+              <select class="filter-select" id="budget-month-sel"></select>
+              <button class="btn btn-primary" id="save-budgets-btn">Save All Budgets</button>
+            </div>
+            <div class="card" style="padding:0;overflow:hidden;" id="budget-edit-list">
+              <div style="padding:var(--space-4);color:var(--clr-text-muted);">Loading…</div>
+            </div>
+          </div>
+
+          <!-- EXPORT -->
+          <div class="settings-panel card" id="panel-export">
+            <div class="settings-section-title">Export Data</div>
+            <div class="settings-section-sub">Download your household expense data at any time.</div>
+            <div style="display:flex;flex-direction:column;gap:var(--space-4);">
+              <div class="card" style="background:var(--clr-surface-2);">
+                <div class="flex items-center gap-3 justify-between">
+                  <div>
+                    <div class="font-semibold">📄 Export Expenses as CSV</div>
+                    <div class="text-sm text-muted">All expenses for the current month — works with Excel and Google Sheets.</div>
+                  </div>
+                  <button class="btn btn-secondary" id="export-csv-btn">Export CSV</button>
+                </div>
+              </div>
+              <div class="card" style="background:var(--clr-surface-2);">
+                <div class="flex items-center gap-3 justify-between">
+                  <div>
+                    <div class="font-semibold">📦 Export All Data as JSON</div>
+                    <div class="text-sm text-muted">Full backup of all expenses, categories, tags, and splits.</div>
+                  </div>
+                  <button class="btn btn-secondary" id="export-json-btn">Export JSON</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- DANGER ZONE -->
+          <div class="settings-panel card" id="panel-danger">
+            <div class="settings-section-title" style="color:var(--clr-danger);">⚠️ Danger Zone</div>
+            <div class="settings-section-sub">These actions are irreversible. Please proceed with caution.</div>
+            <div style="display:flex;flex-direction:column;gap:var(--space-4);">
+              <div class="card" style="border-color:var(--clr-danger);background:var(--clr-danger-light);">
+                <div class="flex items-center gap-3 justify-between flex-wrap gap-3">
+                  <div>
+                    <div class="font-semibold text-danger">Leave Household</div>
+                    <div class="text-sm" style="color:var(--clr-danger);opacity:0.8;">You will lose access to all shared expenses. Ownership must be transferred first.</div>
+                  </div>
+                  <button class="btn btn-danger" id="leave-household-btn">Leave Household</button>
+                </div>
+              </div>
+              <div class="card" style="border-color:var(--clr-danger);background:var(--clr-danger-light);">
+                <div class="flex items-center gap-3 justify-between flex-wrap gap-3">
+                  <div>
+                    <div class="font-semibold text-danger">Delete Account</div>
+                    <div class="text-sm" style="color:var(--clr-danger);opacity:0.8;">Permanently delete your account and all associated data. This cannot be undone.</div>
+                  </div>
+                  <button class="btn btn-danger" id="delete-account-btn">Delete Account</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<nav class="mobile-bottom-nav"></nav>
+<div class="toast-container"></div>
+
+<script type="module">
+import { supabase, formatPHP, signOut } from './assets/js/supabase.js';
+import { initAppShell, showToast, escHtml, confirm, exportCSV, exportJSON, initMonthFilter } from './assets/js/utils.js';
+
+let currentUser, currentProfile, currentHousehold;
+const COLORS = ['#4F46E5','#0F766E','#10B981','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#F97316','#06B6D4','#6B7280','#14B8A6'];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const auth = await initAppShell('settings');
+  if (!auth) return;
+  currentUser    = auth.user;
+  currentProfile = auth.profile;
+  currentHousehold = auth.profile?.household;
+
+  initSettingsNav();
+  await loadProfile();
+  initColorPicker('cat-color-picker', 'new-cat-color');
+
+  // Handle hash navigation e.g. settings.html#budgets
+  const hash = window.location.hash.replace('#', '');
+  if (hash) activateSection(hash);
+
+  // Load section based on active panel
+  loadActiveSection(document.querySelector('.settings-nav-item.active')?.dataset?.section ?? 'profile');
+});
+
+function initSettingsNav() {
+  document.querySelectorAll('.settings-nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.settings-nav-item').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activateSection(btn.dataset.section);
+    });
+  });
+}
+
+function activateSection(id) {
+  document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`#panel-${id}`)?.classList.add('active');
+  document.querySelectorAll('.settings-nav-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.section === id);
+  });
+  loadActiveSection(id);
+}
+
+async function loadActiveSection(id) {
+  if (id === 'profile')    await loadProfile();
+  if (id === 'household')  await loadHousehold();
+  if (id === 'members')    await loadMembers();
+  if (id === 'categories') await loadCategories();
+  if (id === 'tags')       await loadTags();
+  if (id === 'budgets')    await loadBudgets();
+  if (id === 'export')     initExport();
+  if (id === 'danger')     initDanger();
+}
+
+// ---- PROFILE ----
+async function loadProfile() {
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (!profile) return;
+  document.getElementById('profile-name-display').textContent  = profile.full_name;
+  document.getElementById('profile-email-display').textContent = currentUser.email;
+  document.getElementById('profile-role-display').textContent  = profile.role ?? 'member';
+  document.getElementById('profile-avatar-preview').textContent = profile.full_name[0].toUpperCase();
+  document.getElementById('setting-name').value     = profile.full_name;
+  document.getElementById('setting-currency').value = profile.currency ?? 'PHP';
+  document.getElementById('setting-theme').value    = profile.theme_preference ?? 'light';
+
+  document.getElementById('save-profile-btn').onclick = async () => {
+    const name     = document.getElementById('setting-name')?.value.trim();
+    const currency = document.getElementById('setting-currency')?.value;
+    const theme    = document.getElementById('setting-theme')?.value;
+    if (!name) { showToast('Name is required.', 'warning'); return; }
+    const { error } = await supabase.from('profiles').update({ full_name: name, currency, theme_preference: theme }).eq('id', currentUser.id);
+    if (error) { showToast('Failed to save.', 'error'); return; }
+    if (theme) { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('gastos-theme', theme); }
+    showToast('Profile saved!', 'success');
+  };
+
+  document.getElementById('save-password-btn').onclick = async () => {
+    const pw  = document.getElementById('new-password')?.value;
+    const cpw = document.getElementById('confirm-password')?.value;
+    if (!pw || pw.length < 8) { showToast('Password must be at least 8 characters.', 'warning'); return; }
+    if (pw !== cpw) { showToast('Passwords do not match.', 'error'); return; }
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    if (error) { showToast('Failed to update password.', 'error'); return; }
+    showToast('Password updated!', 'success');
+    document.getElementById('new-password').value = '';
+    document.getElementById('confirm-password').value = '';
+  };
+}
+
+// ---- HOUSEHOLD ----
+async function loadHousehold() {
+  if (!currentProfile?.household_id) return;
+  const { data: hh } = await supabase.from('households').select('*').eq('id', currentProfile.household_id).single();
+  if (!hh) return;
+  document.getElementById('household-name').value = hh.name;
+  document.getElementById('save-household-btn').onclick = async () => {
+    const name = document.getElementById('household-name')?.value.trim();
+    if (!name) { showToast('Name is required.', 'warning'); return; }
+    const { error } = await supabase.from('households').update({ name }).eq('id', hh.id);
+    if (error) { showToast('Failed to save.', 'error'); return; }
+    showToast('Household updated!', 'success');
+  };
+}
+
+// ---- MEMBERS ----
+async function loadMembers() {
+  const hid = currentProfile?.household_id;
+  if (!hid) return;
+
+  // Members
+  const { data: members } = await supabase.from('profiles').select('id, full_name, role').eq('household_id', hid);
+  const mList = document.getElementById('members-list');
+  if (mList) mList.innerHTML = (members ?? []).map(m => `
+    <div class="member-row">
+      <div class="avatar">${m.full_name[0].toUpperCase()}</div>
+      <div style="flex:1;">
+        <div class="font-medium">${escHtml(m.full_name)} ${m.id === currentUser.id ? '<span class="badge badge-primary">You</span>' : ''}</div>
+        <div class="text-xs text-muted capitalize">${m.role}</div>
+      </div>
+      ${currentProfile.role === 'owner' && m.id !== currentUser.id
+        ? `<button class="btn btn-sm btn-danger" onclick="removeMember('${m.id}', '${escHtml(m.full_name)}')">Remove</button>`
+        : ''}
+    </div>
+  `).join('');
+
+  // Pending invites
+  const { data: invites } = await supabase.from('invitations').select('*').eq('household_id', hid).eq('status', 'pending');
+  const iList = document.getElementById('pending-invites');
+  if (iList) {
+    if (!invites || invites.length === 0) {
+      iList.innerHTML = '<div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">No pending invites.</div>';
+    } else {
+      iList.innerHTML = invites.map(inv => `
+        <div class="member-row">
+          <div class="avatar" style="background:var(--clr-border);color:var(--clr-text-muted);">?</div>
+          <div style="flex:1;">
+            <div class="font-medium">${escHtml(inv.invited_email)}</div>
+            <div class="text-xs text-muted">Pending · Expires ${new Date(inv.expires_at).toLocaleDateString('en-PH')}</div>
+          </div>
+          <span class="badge badge-warning">Pending</span>
+          <button class="btn btn-sm btn-ghost" onclick="resendInvite('${inv.id}', '${escHtml(inv.invited_email)}')">Resend</button>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Send invite
+  document.getElementById('send-invite-btn').onclick = async () => {
+    const email = document.getElementById('invite-email')?.value.trim().toLowerCase();
+    if (!email) { showToast('Enter an email address.', 'warning'); return; }
+
+    const token = crypto.randomUUID().replace(/-/g, '');
+    const { error } = await supabase.from('invitations').insert({
+      household_id: hid,
+      invited_email: email,
+      invited_by: currentUser.id,
+      token,
+    });
+    if (error) { showToast('Failed to send invite.', 'error'); return; }
+
+    const link = `${window.location.origin}/index.html?invite=${token}`;
+    // In production, send via Supabase Edge Function email
+    showToast(`Invite link generated! Share: ${link}`, 'success', 8000);
+    document.getElementById('invite-email').value = '';
+    await loadMembers();
+  };
+}
+
+window.removeMember = async function(memberId, name) {
+  const ok = await confirm(`Remove ${name} from the household?`, 'Remove Member');
+  if (!ok) return;
+  const { error } = await supabase.from('profiles').update({ household_id: null, role: 'member' }).eq('id', memberId);
+  if (error) { showToast('Failed to remove member.', 'error'); return; }
+  showToast(`${name} removed.`, 'info');
+  await loadMembers();
+};
+
+window.resendInvite = async function(inviteId, email) {
+  showToast(`Resend logic: share the original link for ${email}`, 'info');
+};
+
+// ---- CATEGORIES ----
+async function loadCategories() {
+  const hid = currentProfile?.household_id;
+  const { data } = await supabase.from('categories').select('*')
+    .or(`household_id.is.null,household_id.eq.${hid}`).order('name');
+
+  const defaults = (data ?? []).filter(c => c.is_default);
+  const customs  = (data ?? []).filter(c => !c.is_default && c.household_id === hid);
+
+  const defEl = document.getElementById('default-categories');
+  if (defEl) defEl.innerHTML = defaults.map(c => `
+    <div class="cat-table-row">
+      <span style="font-size:1.3rem;text-align:center;">${c.icon}</span>
+      <span class="font-medium text-sm">${escHtml(c.name)}</span>
+      <span class="color-dot" style="background:${c.color};width:14px;height:14px;"></span>
+      <span class="badge badge-neutral" style="font-size:10px;">Default</span>
+    </div>
+  `).join('');
+
+  const cusEl = document.getElementById('custom-categories');
+  if (cusEl) cusEl.innerHTML = customs.length === 0
+    ? '<div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">No custom categories yet.</div>'
+    : customs.map(c => `
+      <div class="cat-table-row">
+        <span style="font-size:1.3rem;text-align:center;">${c.icon}</span>
+        <span class="font-medium text-sm">${escHtml(c.name)}</span>
+        <span class="color-dot" style="background:${c.color};width:14px;height:14px;"></span>
+        <button class="btn btn-ghost btn-sm" onclick="deleteCategory('${c.id}')" style="color:var(--clr-danger);">Delete</button>
+      </div>
+    `).join('');
+
+  document.getElementById('add-cat-btn').onclick = async () => {
+    const icon  = document.getElementById('new-cat-icon')?.value.trim() || '📦';
+    const name  = document.getElementById('new-cat-name')?.value.trim();
+    const color = document.getElementById('new-cat-color')?.value || '#4F46E5';
+    if (!name) { showToast('Name is required.', 'warning'); return; }
+    const { error } = await supabase.from('categories').insert({ household_id: hid, name, icon, color, is_default: false, created_by: currentUser.id });
+    if (error) { showToast('Failed to add category.', 'error'); return; }
+    document.getElementById('new-cat-name').value = '';
+    document.getElementById('new-cat-icon').value = '';
+    showToast('Category added!', 'success');
+    await loadCategories();
+  };
+}
+
+window.deleteCategory = async function(id) {
+  const ok = await confirm('Delete this category? Expenses using it will become uncategorized.', 'Delete Category');
+  if (!ok) return;
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) { showToast('Failed to delete.', 'error'); return; }
+  showToast('Category deleted.', 'info');
+  await loadCategories();
+};
+
+// ---- TAGS ----
+async function loadTags() {
+  const hid = currentProfile?.household_id;
+  const { data } = await supabase.from('tags').select('*')
+    .or(`household_id.is.null,household_id.eq.${hid}`).order('name');
+
+  const defaults = (data ?? []).filter(t => t.is_default);
+  const customs  = (data ?? []).filter(t => !t.is_default && t.household_id === hid);
+
+  const hexToAlpha = (hex, a) => { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
+
+  document.getElementById('default-tags').innerHTML = defaults.map(t => `
+    <span class="tag-item" style="background:${hexToAlpha(t.color,0.15)};color:${t.color};border-color:${hexToAlpha(t.color,0.3)};">
+      ${escHtml(t.name)}
+    </span>
+  `).join('');
+
+  const cusEl = document.getElementById('custom-tags');
+  if (customs.length === 0) {
+    cusEl.innerHTML = '<div class="text-sm text-muted">No custom tags yet.</div>';
+  } else {
+    cusEl.innerHTML = customs.map(t => `
+      <span class="tag-item tag-removable" style="background:${hexToAlpha(t.color,0.15)};color:${t.color};border-color:${hexToAlpha(t.color,0.3)};">
+        ${escHtml(t.name)}
+        <button class="delete-tag" onclick="deleteTag('${t.id}')" title="Remove">✕</button>
+      </span>
+    `).join('');
+  }
+
+  document.getElementById('add-tag-btn').onclick = async () => {
+    const name  = document.getElementById('new-tag-name')?.value.trim();
+    const color = document.getElementById('new-tag-color')?.value || '#4F46E5';
+    if (!name) { showToast('Tag name is required.', 'warning'); return; }
+    const { error } = await supabase.from('tags').insert({ household_id: hid, name, color, is_default: false, created_by: currentUser.id });
+    if (error) { showToast('Failed to add tag.', 'error'); return; }
+    document.getElementById('new-tag-name').value = '';
+    showToast('Tag added!', 'success');
+    await loadTags();
+  };
+}
+
+window.deleteTag = async function(id) {
+  const { error } = await supabase.from('tags').delete().eq('id', id);
+  if (error) { showToast('Failed to delete.', 'error'); return; }
+  await loadTags();
+};
+
+// ---- BUDGETS ----
+async function loadBudgets() {
+  const hid = currentProfile?.household_id;
+  const now = new Date();
+  const currentMonthVal = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+
+  // Populate month selector
+  const sel = document.getElementById('budget-month-sel');
+  if (sel) {
+    const months = [];
+    for (let i = -1; i <= 11; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      months.push({ val, label: d.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' }) });
+    }
+    sel.innerHTML = months.map(m => `<option value="${m.val}" ${m.val === currentMonthVal ? 'selected' : ''}>${m.label}</option>`).join('');
+    sel.addEventListener('change', () => renderBudgetInputs(sel.value));
+  }
+
+  renderBudgetInputs(currentMonthVal);
+
+  document.getElementById('save-budgets-btn').onclick = async () => {
+    const month = document.getElementById('budget-month-sel')?.value ?? currentMonthVal;
+    const rows  = document.querySelectorAll('.budget-edit-row[data-cat-id]');
+    const upserts = [];
+
+    rows.forEach(row => {
+      const catId = row.dataset.catId;
+      const amt   = parseFloat(row.querySelector('input')?.value);
+      if (!isNaN(amt) && amt > 0) {
+        upserts.push({ household_id: hid, category_id: catId, month, amount: amt, created_by: currentUser.id });
+      }
+    });
+
+    if (upserts.length === 0) { showToast('No budgets to save.', 'warning'); return; }
+
+    const { error } = await supabase.from('budgets').upsert(upserts, { onConflict: 'household_id,category_id,month' });
+    if (error) { showToast('Failed to save budgets.', 'error'); return; }
+    showToast(`${upserts.length} budget${upserts.length !== 1 ? 's' : ''} saved!`, 'success');
+  };
+}
+
+async function renderBudgetInputs(month) {
+  const hid = currentProfile?.household_id;
+  const container = document.getElementById('budget-edit-list');
+  if (!container) return;
+
+  const [{ data: cats }, { data: budgets }] = await Promise.all([
+    supabase.from('categories').select('*').or(`household_id.is.null,household_id.eq.${hid}`).order('name'),
+    supabase.from('budgets').select('*').eq('household_id', hid).eq('month', month),
+  ]);
+
+  const budgetMap = {};
+  (budgets ?? []).forEach(b => { budgetMap[b.category_id] = b.amount; });
+
+  container.innerHTML = `
+    <div class="budget-edit-row" style="background:var(--clr-surface-2);font-size:var(--text-xs);font-weight:600;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.05em;">
+      <span>Category</span><span>Monthly Budget (₱)</span>
+    </div>
+    ${(cats ?? []).map(c => `
+      <div class="budget-edit-row" data-cat-id="${c.id}">
+        <div class="flex items-center gap-2">
+          <span style="font-size:1.1rem;">${c.icon}</span>
+          <span class="text-sm font-medium">${escHtml(c.name)}</span>
+          ${c.is_default ? '<span class="badge badge-neutral" style="font-size:10px;">Default</span>' : ''}
+        </div>
+        <div class="input-group">
+          <span class="input-prefix" style="font-size:0.75rem;">₱</span>
+          <input class="form-control has-prefix" type="number" min="0" step="100"
+                 value="${budgetMap[c.id] ?? ''}" placeholder="0.00"
+                 style="font-family:var(--font-mono);font-size:var(--text-sm);" />
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+// ---- EXPORT ----
+function initExport() {
+  document.getElementById('export-csv-btn').onclick = async () => {
+    const { data } = await supabase.from('expenses')
+      .select('title, amount, expense_date, due_date, status, notes, category:categories(name)')
+      .eq('household_id', currentProfile.household_id).eq('is_deleted', false);
+    const rows = (data ?? []).map(e => ({
+      Title: e.title, Amount: e.amount, Category: e.category?.name ?? '',
+      Date: e.expense_date, DueDate: e.due_date ?? '', Status: e.status, Notes: e.notes ?? '',
+    }));
+    exportCSV(rows, ['Title','Amount','Category','Date','DueDate','Status','Notes'], `gastos-export-${Date.now()}.csv`);
+    showToast('CSV exported!', 'success');
+  };
+
+  document.getElementById('export-json-btn').onclick = async () => {
+    const [expenses, recurring, cats, tags] = await Promise.all([
+      supabase.from('expenses').select('*').eq('household_id', currentProfile.household_id).eq('is_deleted', false),
+      supabase.from('recurring_expenses').select('*').eq('household_id', currentProfile.household_id),
+      supabase.from('categories').select('*').or(`household_id.is.null,household_id.eq.${currentProfile.household_id}`),
+      supabase.from('tags').select('*').or(`household_id.is.null,household_id.eq.${currentProfile.household_id}`),
+    ]);
+    exportJSON({ expenses: expenses.data, recurring: recurring.data, categories: cats.data, tags: tags.data }, `gastos-backup-${Date.now()}.json`);
+    showToast('JSON exported!', 'success');
+  };
+}
+
+// ---- DANGER ----
+function initDanger() {
+  document.getElementById('leave-household-btn').onclick = async () => {
+    const ok = await confirm('Are you sure you want to leave this household? You will lose access to all shared data.', 'Leave Household');
+    if (!ok) return;
+    await supabase.from('profiles').update({ household_id: null, role: 'member' }).eq('id', currentUser.id);
+    showToast('You have left the household.', 'info');
+    setTimeout(() => signOut(), 1500);
+  };
+
+  document.getElementById('delete-account-btn').onclick = async () => {
+    const ok = await confirm('Permanently delete your account? This cannot be undone.', 'Delete Account');
+    if (!ok) return;
+    showToast('Please contact support to delete your account.', 'info');
+  };
+}
+
+// ---- HELPERS ----
+function initColorPicker(containerId, hiddenId) {
+  const container = document.getElementById(containerId);
+  const hidden    = document.getElementById(hiddenId);
+  if (!container || !hidden) return;
+
+  container.innerHTML = COLORS.map(c => `
+    <div class="color-swatch ${c === hidden.value ? 'selected' : ''}"
+         style="background:${c};" data-color="${c}"
+         onclick="selectColor('${containerId}','${hiddenId}','${c}')"></div>
+  `).join('');
+}
+
+window.selectColor = function(containerId, hiddenId, color) {
+  document.getElementById(hiddenId).value = color;
+  document.querySelectorAll(`#${containerId} .color-swatch`).forEach(s => {
+    s.classList.toggle('selected', s.dataset.color === color);
+  });
+};
+</script>
+</body>
+</html>
