@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Confirming your account…</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+  <div style="text-align:center;">
+    <div class="spinner spinner-lg" style="margin:0 auto;"></div>
+    <p style="margin-top:1rem;color:var(--clr-text-muted);">Confirming your account…</p>
+  </div>
+  <script type="module">
+    import { supabase } from './assets/js/supabase.js';
+
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error || !data.session) {
+      // Try exchanging the token from URL hash
+      const { error: err } = await supabase.auth.exchangeCodeForSession(
+        window.location.href
+      );
+      if (err) {
+        document.body.innerHTML = `
+          <div style="text-align:center;padding:2rem;">
+            <div style="font-size:3rem;">❌</div>
+            <h2 style="margin-top:1rem;">Confirmation failed</h2>
+            <p style="color:#94A3B8;">${err.message}</p>
+            <a href="/expense-tracker/index.html" 
+               style="color:#0F766E;margin-top:1rem;display:inline-block;">
+              Back to login
+            </a>
+          </div>`;
+        return;
+      }
+    }
+
+    window.location.href = '/expense-tracker/dashboard.html';
+  </script>
+</body>
+</html>
