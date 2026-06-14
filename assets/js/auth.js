@@ -10,7 +10,15 @@ import { showToast } from './utils.js';
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  await redirectIfAuthed();
+  // ── FIX 1: Don't redirect away if the user arrived via an invite link.
+  //    Without this check, a browser that already has a session (e.g. the
+  //    household owner who sent the invite) gets bounced to the dashboard
+  //    immediately and the invite flow never runs.
+  const hasInvite = new URLSearchParams(window.location.search).has('invite');
+  if (!hasInvite) {
+    await redirectIfAuthed();
+  }
+
   initTabs();
   initLoginForm();
   initRegisterForm();
@@ -94,8 +102,12 @@ function initRegisterForm() {
     const confirm   = form.querySelector('#reg-confirm').value;
     const houseName = form.querySelector('#reg-household').value.trim();
 
-    if (!fullName || !email || !password || !houseName) {
+    if (!fullName || !email || !password) {
       showToast('Please fill in all required fields.', 'warning'); return;
+    }
+    // Only require household name for non-invite registrations
+    if (!form._inviteToken && !houseName) {
+      showToast('Please enter a household name.', 'warning'); return;
     }
     if (password !== confirm) {
       showToast('Passwords do not match.', 'error'); return;
@@ -140,54 +152,58 @@ function initRegisterForm() {
 
     const userId = signInData.user?.id;
 
-// 3. Check if this is an invite registration
-const inviteToken     = form._inviteToken;
-const inviteHousehold = form._inviteHousehold;
+    // 3. Check if this is an invite registration
+    const inviteToken     = form._inviteToken;
+    const inviteHousehold = form._inviteHousehold;
 
-let householdId, role;
+    let householdId, role;
 
-if (inviteToken && inviteHousehold) {
-  // ── Invited user: join existing household ──
-  householdId = inviteHousehold;
-  role        = 'member';
+    if (inviteToken && inviteHousehold) {
+      // ── Invited user: join existing household ──
+      householdId = inviteHousehold;
+      role        = 'member';
 
-  // Mark invite as accepted
-  await supabase.from('invitations')
-    .update({ status: 'accepted' })
-    .eq('token', inviteToken);
+      // Mark invite as accepted
+      await supabase.from('invitations')
+        .update({ status: 'accepted' })
+        .eq('token', inviteToken);
 
-} else {
-  // ── New user: create their own household ──
-  const { data: household, error: hhError } = await supabase
-    .from('households')
-    .insert({ name: houseName, created_by: userId })
-    .select()
-    .single();
+    } else {
+      // ── New user: create their own household ──
+      const { data: household, error: hhError } = await supabase
+        .from('households')
+        .insert({ name: houseName, created_by: userId })
+        .select()
+        .single();
 
-  if (hhError) {
-    console.error('Household error:', hhError);
-    showToast('Account created but household setup failed: ' + hhError.message, 'warning');
-    btn.disabled = false;
-    btn.textContent = 'Create Account';
-    return;
-  }
+      if (hhError) {
+        console.error('Household error:', hhError);
+        showToast('Account created but household setup failed: ' + hhError.message, 'warning');
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        return;
+      }
 
-  householdId = household.id;
-  role        = 'owner';
+      householdId = household.id;
+      role        = 'owner';
 
-  await seedHouseholdData(userId, householdId);
-}
+      // Seed starter data for new households only
+      await seedHouseholdData(userId, householdId);
+    }
 
-// 4. Update profile
-const { error: profileError } = await supabase
-  .from('profiles')
-  .update({ household_id: householdId, role })
-  .eq('id', userId);
+    // 4. Update profile
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ household_id: householdId, role })
+      .eq('id', userId);
 
-if (profileError) console.error('Profile update error:', profileError);
+    if (profileError) console.error('Profile update error:', profileError);
 
-    // 5. Seed a starter tag for the household
-    await seedHouseholdData(userId, household.id);
+    // ── FIX 2: Removed the leftover `seedHouseholdData(userId, household.id)` call
+    //    that was here. `household` is block-scoped to the else branch above and
+    //    is not accessible here — it threw a ReferenceError for ALL users, which
+    //    silently prevented the success toast and dashboard redirect from ever running.
+    //    seedHouseholdData is already called inside the else branch for new users. ──
 
     showToast('Account created! Check your email to verify.', 'success');
     setTimeout(() => window.location.href = '/expense-tracker/dashboard.html', 1500);
@@ -237,10 +253,10 @@ function updatePasswordStrength(password) {
     label.textContent = '';
     return;
   }
-  bar.style.width     = level.width;
+  bar.style.width      = level.width;
   bar.style.background = level.color;
-  label.textContent   = level.label;
-  label.style.color   = level.color;
+  label.textContent    = level.label;
+  label.style.color    = level.color;
 }
 
 // ============================================================
@@ -368,7 +384,7 @@ async function checkInviteToken() {
   const submitBtn = document.querySelector('#register-form [type="submit"]');
   if (submitBtn) submitBtn.textContent = `Join ${householdName}`;
 
-  // ── After successful registration, skip household creation and join directly ──
+  // ── Store invite info on form so initRegisterForm can pick it up ──
   const form = document.getElementById('register-form');
   if (form) {
     form._inviteToken     = token;
@@ -376,10 +392,10 @@ async function checkInviteToken() {
   }
 
   // ── Hide household field — invited users don't create one ──
-const houseGroup = document.getElementById('reg-household')?.closest('.form-group');
-if (houseGroup) {
-  houseGroup.style.display = 'none';
-}
+  const houseGroup = document.getElementById('reg-household')?.closest('.form-group');
+  if (houseGroup) {
+    houseGroup.style.display = 'none';
+  }
 }
 
 async function acceptInvite(token, userId) {
@@ -431,4 +447,13 @@ function friendlyAuthError(msg) {
   if (msg.includes('already registered'))        return 'This email is already registered. Try logging in.';
   if (msg.includes('Password should be'))        return 'Password must be at least 8 characters.';
   return msg;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
