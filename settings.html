@@ -582,7 +582,8 @@ window.resendInvite = async function(inviteId, email, token, btnEl) {
 
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/send-invite`, {
+    
+    const res = await fetch(`https://tdpabktyawspqzvbyier.supabase.co/functions/v1/send-invite`, {
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
