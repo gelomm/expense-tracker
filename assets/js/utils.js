@@ -76,7 +76,7 @@ export async function initAppShell(activePage) {
     reminders:  'Reminders',
     settings:   'Settings',
   };
-  if (topbarTitle) topbarTitle.textContent = pageTitles[activePage] ?? 'Gastos';
+  if (topbarTitle) topbarTitle.textContent = pageTitles[activePage] ?? 'WeXpense';
 
   // Theme toggle
   document.getElementById('theme-toggle')?.addEventListener('click', async () => {
@@ -112,9 +112,9 @@ function renderSidebar(activePage, profile) {
 
   sidebarEl.innerHTML = `
     <div class="sidebar-logo">
-      <div class="sidebar-logo-mark">G</div>
+      <div class="sidebar-logo-mark">W</div>
       <div>
-        <div class="sidebar-logo-text">Gastos</div>
+        <div class="sidebar-logo-text">WeXpense</div>
         <div class="sidebar-logo-sub">${escHtml(householdName)}</div>
       </div>
     </div>
