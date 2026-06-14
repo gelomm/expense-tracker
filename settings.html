@@ -509,25 +509,62 @@ async function loadMembers() {
   }
 
   // Send invite
-  document.getElementById('send-invite-btn').onclick = async () => {
-    const email = document.getElementById('invite-email')?.value.trim().toLowerCase();
-    if (!email) { showToast('Enter an email address.', 'warning'); return; }
+document.getElementById('send-invite-btn').onclick = async () => {
+  const email = document.getElementById('invite-email')?.value.trim().toLowerCase();
+  if (!email) { showToast('Enter an email address.', 'warning'); return; }
 
-    const token = crypto.randomUUID().replace(/-/g, '');
-    const { error } = await supabase.from('invitations').insert({
-      household_id: hid,
-      invited_email: email,
-      invited_by: currentUser.id,
-      token,
-    });
-    if (error) { showToast('Failed to send invite.', 'error'); return; }
+  const btn = document.getElementById('send-invite-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
 
-    const link = `${window.location.origin}/expense-tracker/index.html?invite=${token}`;
-    // In production, send via Supabase Edge Function email
-    showToast(`Invite link generated! Share: ${link}`, 'success', 8000);
+  // 1. Create invite token in DB
+  const token = crypto.randomUUID().replace(/-/g, '');
+  const { error: inviteError } = await supabase.from('invitations').insert({
+    household_id:   hid,
+    invited_email:  email,
+    invited_by:     currentUser.id,
+    token,
+  });
+
+  if (inviteError) {
+    showToast('Failed to create invite.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Send Invite';
+    return;
+  }
+
+  // 2. Call Edge Function to send email
+  const { data: { session } } = await supabase.auth.getSession();
+  const response = await fetch(
+    'https://tdpabktyawspqzvbyier.supabase.co/functions/v1/send-invite',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        inviteEmail:   email,
+        inviterName:   currentProfile.full_name,
+        householdName: currentHousehold?.name ?? 'our household',
+        token,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (result.error) {
+    showToast('Failed to send invite email: ' + result.error, 'error');
+  } else {
+    showToast(`Invite sent to ${email}! 🎉`, 'success');
     document.getElementById('invite-email').value = '';
     await loadMembers();
-  };
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Send Invite';
+};
 }
 
 window.removeMember = async function(memberId, name) {
