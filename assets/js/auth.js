@@ -140,33 +140,51 @@ function initRegisterForm() {
 
     const userId = signInData.user?.id;
 
-    // 3. Create household (now has a valid session)
-    const { data: household, error: hhError } = await supabase
-      .from('households')
-      .insert({ name: houseName, created_by: userId })
-      .select()
-      .single();
+// 3. Check if this is an invite registration
+const inviteToken     = form._inviteToken;
+const inviteHousehold = form._inviteHousehold;
 
-    if (hhError) {
-      console.error('Household error:', hhError);
-      showToast('Account created but household setup failed: ' + hhError.message, 'warning');
-      btn.disabled = false;
-      btn.textContent = 'Create Account';
-      return;
-    }
+let householdId, role;
 
-    // 4. Update profile with household info
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({
-        household_id: household.id,
-        role: 'owner',
-      })
-      .eq('id', userId);
+if (inviteToken && inviteHousehold) {
+  // ── Invited user: join existing household ──
+  householdId = inviteHousehold;
+  role        = 'member';
 
-    if (profileError) {
-      console.error('Profile update error:', profileError);
-    }
+  // Mark invite as accepted
+  await supabase.from('invitations')
+    .update({ status: 'accepted' })
+    .eq('token', inviteToken);
+
+} else {
+  // ── New user: create their own household ──
+  const { data: household, error: hhError } = await supabase
+    .from('households')
+    .insert({ name: houseName, created_by: userId })
+    .select()
+    .single();
+
+  if (hhError) {
+    console.error('Household error:', hhError);
+    showToast('Account created but household setup failed: ' + hhError.message, 'warning');
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
+    return;
+  }
+
+  householdId = household.id;
+  role        = 'owner';
+
+  await seedHouseholdData(userId, householdId);
+}
+
+// 4. Update profile
+const { error: profileError } = await supabase
+  .from('profiles')
+  .update({ household_id: householdId, role })
+  .eq('id', userId);
+
+if (profileError) console.error('Profile update error:', profileError);
 
     // 5. Seed a starter tag for the household
     await seedHouseholdData(userId, household.id);
@@ -272,52 +290,96 @@ function initForgotPassword() {
 // INVITE TOKEN — Accept an invite from URL
 // ============================================================
 async function checkInviteToken() {
-  const params     = new URLSearchParams(window.location.search);
-  const token      = params.get('invite');
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('invite');
   if (!token) return;
 
   const banner     = document.getElementById('invite-banner');
   const tokenInput = document.getElementById('invite-token-field');
-  if (banner)      banner.classList.remove('hidden');
-  if (tokenInput)  tokenInput.value = token;
+  if (tokenInput) tokenInput.value = token;
 
-  const { data: invite } = await supabase
+  // Fetch invite details
+  const { data: invite, error } = await supabase
     .from('invitations')
     .select('*, household:households(name), inviter:profiles(full_name)')
     .eq('token', token)
     .eq('status', 'pending')
     .single();
 
-  if (!invite || new Date(invite.expires_at) < new Date()) {
-    if (banner) banner.innerHTML = '<p class="text-danger">This invite link has expired or is invalid.</p>';
+  if (error || !invite || new Date(invite.expires_at) < new Date()) {
+    if (banner) banner.innerHTML = `
+      <div class="invite-card" style="background:var(--clr-danger-light);border:1px solid var(--clr-danger);border-radius:var(--radius-lg);padding:var(--space-4);">
+        <div class="invite-icon">❌</div>
+        <div>
+          <p class="font-semibold text-danger">This invite link has expired or is invalid.</p>
+          <p class="text-sm text-muted">Ask the household owner to send a new invite.</p>
+        </div>
+      </div>`;
+    banner.classList.remove('hidden');
     return;
   }
 
   const householdName = invite.household?.name ?? 'a household';
   const inviterName   = invite.inviter?.full_name ?? 'Someone';
+  const invitedEmail  = invite.invited_email;
 
+  // ── Show invite banner ──
   if (banner) {
+    banner.classList.remove('hidden');
     banner.innerHTML = `
       <div class="invite-card">
         <div class="invite-icon">🏠</div>
         <div>
-          <p class="font-semibold">${inviterName} invited you to join <strong>${householdName}</strong></p>
-          <p class="text-sm text-muted">Create an account or sign in to accept.</p>
+          <p class="font-semibold">${escHtml(inviterName)} invited you to join <strong>${escHtml(householdName)}</strong></p>
+          <p class="text-sm text-muted">Create a password below to join. Your email is already set.</p>
         </div>
-      </div>
-    `;
+      </div>`;
   }
 
+  // ── Switch to register tab ──
+  document.querySelector('[data-tab="register"]')?.click();
+
+  // ── Pre-fill and LOCK email ──
   const emailInput = document.getElementById('reg-email');
-  if (emailInput && invite.invited_email) {
-    emailInput.value = invite.invited_email;
+  if (emailInput) {
+    emailInput.value    = invitedEmail;
+    emailInput.readOnly = true;
+    emailInput.style.background = 'var(--clr-surface-2)';
+    emailInput.style.color      = 'var(--clr-text-muted)';
   }
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session) {
-      await acceptInvite(token, session.user.id);
-    }
-  });
+  // ── Pre-fill and LOCK household name ──
+  const houseInput = document.getElementById('reg-household');
+  if (houseInput) {
+    houseInput.value    = householdName;
+    houseInput.readOnly = true;
+    houseInput.style.background = 'var(--clr-surface-2)';
+    houseInput.style.color      = 'var(--clr-text-muted)';
+  }
+
+  // ── Pre-fill full name from email (editable) ──
+  const nameInput = document.getElementById('reg-name');
+  if (nameInput && !nameInput.value) {
+    nameInput.value       = invitedEmail.split('@')[0];
+    nameInput.placeholder = 'Your full name';
+  }
+
+  // ── Change button label ──
+  const submitBtn = document.querySelector('#register-form [type="submit"]');
+  if (submitBtn) submitBtn.textContent = `Join ${householdName}`;
+
+  // ── After successful registration, skip household creation and join directly ──
+  const form = document.getElementById('register-form');
+  if (form) {
+    form._inviteToken     = token;
+    form._inviteHousehold = invite.household_id;
+  }
+
+  // ── Hide household field — invited users don't create one ──
+const houseGroup = document.getElementById('reg-household')?.closest('.form-group');
+if (houseGroup) {
+  houseGroup.style.display = 'none';
+}
 }
 
 async function acceptInvite(token, userId) {
