@@ -216,7 +216,7 @@ function initForgotPassword() {
     btn.textContent = 'Sending…';
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/expense-tracker/settings.html#reset-password`,
+      redirectTo: `https://gelomm.github.io/expense-tracker/settings.html#reset-password`,
     });
 
     if (error) {
