@@ -502,7 +502,7 @@ async function loadMembers() {
             <div class="text-xs text-muted">Pending · Expires ${new Date(inv.expires_at).toLocaleDateString('en-PH')}</div>
           </div>
           <span class="badge badge-warning">Pending</span>
-          <button class="btn btn-sm btn-ghost" onclick="resendInvite('${inv.id}', '${escHtml(inv.invited_email)}')">Resend</button>
+          <button class="btn btn-sm btn-ghost" onclick="resendInvite('${inv.id}', '${escHtml(inv.invited_email)}', '${inv.token}', this)">Resend</button>
         </div>
       `).join('');
     }
@@ -576,8 +576,43 @@ window.removeMember = async function(memberId, name) {
   await loadMembers();
 };
 
-window.resendInvite = async function(inviteId, email) {
-  showToast(`Resend logic: share the original link for ${email}`, 'info');
+window.resendInvite = async function(inviteId, email, token, btnEl) {
+  btnEl.disabled = true;
+  btnEl.textContent = 'Sending…';
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/send-invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        inviteEmail:   email,
+        inviterName:   currentProfile.full_name,
+        householdName: currentHousehold?.name ?? 'our household',
+        token,
+      }),
+    });
+
+    const result = await res.json();
+    if (!res.ok || result.error) throw new Error(result.error ?? 'Failed');
+
+    // Update expiry in DB — reset to 7 days from now
+    await supabase.from('invitations')
+      .update({ expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() })
+      .eq('id', inviteId);
+
+    showToast(`Invite resent to ${email}! ✅`, 'success');
+    await loadMembers();
+
+  } catch (err) {
+    console.error('Resend error:', err);
+    showToast('Failed to resend invite: ' + err.message, 'error');
+    btnEl.disabled = false;
+    btnEl.textContent = 'Resend';
+  }
 };
 
 // ---- CATEGORIES ----
