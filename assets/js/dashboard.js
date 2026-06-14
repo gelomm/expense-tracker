@@ -254,7 +254,7 @@ function renderBudgetRows(expenses, budgets) {
       <div class="empty-state" style="padding:var(--space-6);">
         <div class="empty-icon">🎯</div>
         <div class="empty-text">No budgets set yet</div>
-        <a href="settings.html#budgets" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Set Budgets</a>
+        <a href="/expense-tracker/settings.html#budgets" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Set Budgets</a>
       </div>`;
     return;
   }
@@ -389,7 +389,7 @@ function renderRecurringOverview(recurring) {
       <div class="empty-state" style="padding:var(--space-4);">
         <div class="empty-icon">🔁</div>
         <div class="empty-text">No recurring expenses</div>
-        <a href="recurring.html" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Add one</a>
+        <a href="/expense-tracker/recurring.html" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Add one</a>
       </div>`;
     return;
   }
@@ -409,7 +409,7 @@ function renderRecurringOverview(recurring) {
 
   if (recurring.length > 5) {
     container.innerHTML += `<div class="text-xs text-muted text-center" style="margin-top:var(--space-2);">
-      +${recurring.length - 5} more · <a href="recurring.html" style="color:var(--clr-primary)">View all</a>
+      +${recurring.length - 5} more · <a href="/expense-tracker/recurring.html" style="color:var(--clr-primary)">View all</a>
     </div>`;
   }
 }
@@ -540,6 +540,6 @@ function showEmptyHousehold() {
       <div class="empty-text" style="margin:var(--space-2) auto var(--space-4);">
         Go to Settings to complete your household profile.
       </div>
-      <a href="settings.html" class="btn btn-primary">Go to Settings</a>
+      <a href="/expense-tracker/settings.html" class="btn btn-primary">Go to Settings</a>
     </div>`;
 }

@@ -1,3 +1,4 @@
+-App Password: hlzc fmci tcwz ivre
 # 💸 Gastos — Monthly Expense Tracker
 
 A modern, fully-featured household expense tracker built with **Vanilla HTML/CSS/JS** + **Supabase**. Deployable on **GitHub Pages** for free.

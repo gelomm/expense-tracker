@@ -253,7 +253,7 @@ function renderMemberList() {
     container.innerHTML = `<div class="empty-state" style="padding:var(--space-6);">
       <div class="empty-icon">👥</div>
       <div class="empty-text">No other members yet. Invite someone in Settings.</div>
-      <a href="settings.html" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Go to Settings</a>
+      <a href="/expense-tracker/settings.html" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Go to Settings</a>
     </div>`;
     return;
   }
@@ -372,7 +372,7 @@ function splitExpenseRow(s, member, direction) {
         ${formatPHP(s.amount)}
       </div>
       <button class="btn btn-sm btn-secondary" onclick="settleSingle('${s.id}')">Settle</button>
-      <a href="expenses.html" class="btn btn-sm btn-ghost">View</a>
+      <a href="/expense-tracker/expenses.html" class="btn btn-sm btn-ghost">View</a>
     </div>
   `;
 }

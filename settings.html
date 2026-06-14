@@ -522,7 +522,7 @@ async function loadMembers() {
     });
     if (error) { showToast('Failed to send invite.', 'error'); return; }
 
-    const link = `${window.location.origin}/index.html?invite=${token}`;
+    const link = `${window.location.origin}/expense-tracker/index.html?invite=${token}`;
     // In production, send via Supabase Edge Function email
     showToast(`Invite link generated! Share: ${link}`, 'success', 8000);
     document.getElementById('invite-email').value = '';

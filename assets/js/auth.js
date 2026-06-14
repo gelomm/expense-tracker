@@ -216,7 +216,7 @@ function initForgotPassword() {
     btn.textContent = 'Sending…';
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/settings.html#reset-password`,
+      redirectTo: `${window.location.origin}/expense-tracker/settings.html#reset-password`,
     });
 
     if (error) {
@@ -319,7 +319,7 @@ function initThemeToggle() {
     toggle.addEventListener('click', () => {
       const current = document.documentElement.getAttribute('data-theme');
       const next    = current === 'dark' ? 'light' : 'dark';
-      document.docuaddmentElement.setAttribute('data-theme', next);
+      document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('gastos-theme', next);
       toggle.textContent = next === 'dark' ? '☀️' : '🌙';
     });

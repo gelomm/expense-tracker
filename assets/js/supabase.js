@@ -29,7 +29,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export async function requireAuth() {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session) {
-    window.location.href = '/index.html';
+    window.location.href = '/expense-tracker/index.html';
     return null;
   }
 
@@ -47,7 +47,7 @@ export async function requireAuth() {
  */
 export async function redirectIfAuthed() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) window.location.href = '/dashboard.html';
+  if (session) window.location.href = '/expense-tracker/dashboard.html';
 }
 
 /**
@@ -55,7 +55,7 @@ export async function redirectIfAuthed() {
  */
 export async function signOut() {
   await supabase.auth.signOut();
-  window.location.href = '/index.html';
+  window.location.href = '/expense-tracker/index.html';
 }
 
 /**
