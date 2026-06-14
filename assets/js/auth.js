@@ -111,7 +111,10 @@ function initRegisterForm() {
     const { data: authData, error: signupError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { 
+        data: { full_name: fullName },
+        emailRedirectTo: 'https://gelomm.github.io/expense-tracker/dashboard.html'
+    },
     });
 
     if (signupError) {
@@ -130,6 +133,7 @@ function initRegisterForm() {
       .select().single();
 
     if (hhError) {
+      onsole.error('Household error:', hhError);
       showToast('Account created but could not set up household. Please log in.', 'warning');
     } else {
       // 3. Update profile with household
