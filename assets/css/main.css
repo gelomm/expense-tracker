@@ -920,6 +920,69 @@ tbody td {
 }
 
 /* ============================================================
+   SPLIT TYPE TABS (shared between expenses + recurring)
+   ============================================================ */
+.split-type-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--clr-surface-2);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  width: fit-content;
+}
+
+.split-type-tab {
+  padding: var(--space-1) var(--space-4);
+  border: none;
+  background: transparent;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--clr-text-muted);
+  transition: all var(--transition-fast);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.split-type-tab:hover {
+  color: var(--clr-text);
+}
+
+.split-type-tab.active {
+  background: var(--clr-surface);
+  color: var(--clr-text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ============================================================
+   SPLIT MEMBER ROW (shared between expenses + recurring)
+   ============================================================ */
+.split-member-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 40px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--clr-border);
+}
+
+.split-member-row:last-child {
+  border-bottom: none;
+}
+
+.split-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  background: var(--clr-surface-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  margin-top: var(--space-3);
+}
+
+/* ============================================================
    TOAST NOTIFICATIONS
    ============================================================ */
 .toast-container {
