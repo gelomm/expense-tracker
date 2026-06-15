@@ -33,6 +33,8 @@
       display: grid; grid-template-columns: 1fr 1fr 1fr;
       gap: var(--space-4); margin-bottom: var(--space-5);
     }
+
+    /* ── Split UI ─────────────────────────────────────── */
     .rc-split-tab-bar {
       display: flex;
       gap: 0;
@@ -60,6 +62,41 @@
       color: var(--clr-text);
       box-shadow: var(--shadow-sm);
     }
+    .split-member-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: var(--space-3);
+      align-items: center;
+      padding: var(--space-2) var(--space-3);
+      background: var(--clr-surface-2);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-2);
+    }
+    .split-summary-block {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      padding: var(--space-3);
+      background: var(--clr-surface-2);
+      border-radius: var(--radius-md);
+      margin-top: var(--space-3);
+    }
+    .split-summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: var(--text-sm);
+    }
+    .split-hint {
+      font-size: var(--text-xs);
+      color: var(--clr-text-muted);
+      margin-top: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: var(--clr-surface-2);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--clr-primary);
+    }
+
     @media (max-width: 768px) {
       .recurring-card { grid-template-columns: 1fr; }
       .rc-actions { justify-content: flex-start; }
@@ -180,6 +217,7 @@
             <span class="toggle-track"></span>
           </label>
         </div>
+
         <div id="rc-split-section" class="hidden">
           <!-- Split type tabs -->
           <div class="rc-split-tab-bar" id="rc-split-tab-bar">
@@ -187,16 +225,33 @@
             <button class="rc-split-tab" data-type="percentage">By %</button>
             <button class="rc-split-tab" data-type="fixed">Fixed ₱</button>
           </div>
-          <!-- Member rows -->
+
+          <!-- Member rows rendered by JS -->
           <div id="rc-split-members"></div>
-          <!-- Total -->
-          <div class="split-total-row" id="rc-split-total-row" style="display:none;">
-            <span class="text-sm">Total allocated:</span>
-            <span id="rc-split-total" class="font-mono font-semibold">—</span>
+
+          <!-- Running totals -->
+          <div class="split-summary-block" id="rc-split-summary" style="display:none;">
+            <div class="split-summary-row">
+              <span class="text-muted">Expense amount</span>
+              <span id="rc-sum-total" class="font-medium font-mono">—</span>
+            </div>
+            <div class="split-summary-row">
+              <span class="text-muted">Total assigned</span>
+              <span id="rc-sum-assigned" class="font-semibold font-mono">—</span>
+            </div>
+            <div class="split-summary-row" id="rc-sum-diff-row" style="display:none;">
+              <span class="text-muted">Unassigned</span>
+              <span id="rc-sum-diff" class="font-semibold font-mono text-warning">—</span>
+            </div>
           </div>
+
+          <!-- Contextual hint -->
+          <p class="split-hint">
+            💡 Splits are saved as a template. Each time you tap ⚡ Generate, the expense is created
+            and the split amounts are automatically recorded in the <strong>Splits</strong> page.
+          </p>
         </div>
       </div>
-
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-close-modal>Cancel</button>
@@ -208,14 +263,15 @@
 <div class="toast-container"></div>
 <script type="module">
 import { supabase, formatPHP, formatDate, daysUntil } from './assets/js/supabase.js';
-import { initAppShell, showToast, openModal, closeModal, initModalClose, categoryBadge, escHtml, confirm, frequencyLabel, daysLabel } from './assets/js/utils.js';
+import { initAppShell, showToast, openModal, closeModal, initModalClose,
+         categoryBadge, escHtml, confirm, frequencyLabel, daysLabel } from './assets/js/utils.js';
 
 // ── Top-level state ──────────────────────────────────────────
 let currentUser, currentProfile;
 let editingId    = null;
 let allMembers   = [];
 let allRecurring = [];
-let rcSplitType  = 'equal'; // ← TOP LEVEL — persists across renders
+let rcSplitType  = 'equal';
 
 // ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -236,7 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filter-freq')?.addEventListener('change', renderList);
   document.getElementById('filter-rc-status')?.addEventListener('change', renderList);
 
-  // Re-render split members when amount changes
+  // Recompute split amounts whenever the expense amount changes
   document.getElementById('rc-amount')?.addEventListener('input', () => {
     if (document.getElementById('rc-split-toggle')?.checked) {
       renderRcSplitMembers();
@@ -244,16 +300,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
-// ── Split tab wiring (done once on load) ────────────────────
+// ── Split tab wiring (once on load) ─────────────────────────
 function initSplitTabs() {
   document.querySelectorAll('.rc-split-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      // Update active tab UI
       document.querySelectorAll('.rc-split-tab').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // Update top-level variable
       rcSplitType = btn.dataset.type;
-      // Re-render member rows with new type
       renderRcSplitMembers();
     });
   });
@@ -344,6 +397,7 @@ function renderList() {
   grid.innerHTML = filtered.map(r => {
     const nextDue = daysUntil(r.next_due_date);
     const urgency = nextDue <= 0 ? 'var(--clr-danger)' : nextDue <= 7 ? 'var(--clr-warning)' : 'var(--clr-success)';
+    const hasSplit = Array.isArray(r.split_config) && r.split_config.length > 0;
     return `
       <div class="recurring-card ${r.is_active ? '' : 'inactive'}">
         <span style="font-size:2rem;">${r.category?.icon ?? '🔁'}</span>
@@ -352,6 +406,7 @@ function renderList() {
             <span class="font-semibold text-lg">${escHtml(r.title)}</span>
             <span class="freq-badge">${frequencyLabel(r.frequency)}</span>
             ${!r.is_active ? '<span class="badge badge-neutral">Paused</span>' : ''}
+            ${hasSplit ? '<span class="badge badge-info" title="Has split config">👥 Split</span>' : ''}
           </div>
           <div class="rc-meta">
             ${categoryBadge(r.category)}
@@ -369,7 +424,7 @@ function renderList() {
           <button class="btn btn-ghost btn-icon" onclick="toggleRc('${r.id}', ${r.is_active})" title="${r.is_active ? 'Pause' : 'Resume'}">
             ${r.is_active ? '⏸️' : '▶️'}
           </button>
-          <button class="btn btn-ghost btn-icon" onclick="generateNow('${r.id}')" title="Generate now" style="color:var(--clr-primary);">⚡</button>
+          <button class="btn btn-ghost btn-icon" onclick="generateNow('${r.id}')" title="Generate expense now" style="color:var(--clr-primary);">⚡</button>
           <button class="btn btn-ghost btn-icon" onclick="deleteRc('${r.id}')" title="Delete" style="color:var(--clr-danger);">🗑️</button>
         </div>
       </div>
@@ -380,7 +435,7 @@ function renderList() {
 // ── Open Add modal ───────────────────────────────────────────
 function openAdd() {
   editingId   = null;
-  rcSplitType = 'equal'; // reset split type
+  rcSplitType = 'equal';
 
   document.getElementById('rc-modal-title').textContent = 'Add Recurring Expense';
   document.getElementById('rc-title').value      = '';
@@ -391,9 +446,8 @@ function openAdd() {
   document.getElementById('rc-end-date').value   = '';
   document.getElementById('rc-split-toggle').checked = false;
   document.getElementById('rc-split-section').classList.add('hidden');
-  document.getElementById('rc-split-total-row').style.display = 'none';
+  document.getElementById('rc-split-summary').style.display = 'none';
 
-  // Reset tab UI to Equal Split
   document.querySelectorAll('.rc-split-tab').forEach(b => b.classList.remove('active'));
   document.querySelector('.rc-split-tab[data-type="equal"]')?.classList.add('active');
 
@@ -406,7 +460,7 @@ window.editRc = async function(id) {
   if (!r) return;
 
   editingId   = id;
-  rcSplitType = 'equal'; // default, will be overridden if split_config exists
+  rcSplitType = 'equal';
 
   document.getElementById('rc-modal-title').textContent = 'Edit Recurring Expense';
   document.getElementById('rc-title').value      = r.title;
@@ -418,48 +472,53 @@ window.editRc = async function(id) {
   document.getElementById('rc-category').value   = r.category_id ?? '';
   document.getElementById('rc-paid-by').value    = r.paid_by ?? currentUser.id;
 
-  // Reset tab UI
   document.querySelectorAll('.rc-split-tab').forEach(b => b.classList.remove('active'));
   document.querySelector('.rc-split-tab[data-type="equal"]')?.classList.add('active');
 
-  if (r.split_config?.length > 0) {
-    // Restore split type from saved config
+  const hasSplit = Array.isArray(r.split_config) && r.split_config.length > 0;
+  if (hasSplit) {
     rcSplitType = r.split_config[0]?.split_type ?? 'equal';
     document.querySelectorAll('.rc-split-tab').forEach(b => b.classList.remove('active'));
     document.querySelector(`.rc-split-tab[data-type="${rcSplitType}"]`)?.classList.add('active');
-
     document.getElementById('rc-split-toggle').checked = true;
     document.getElementById('rc-split-section').classList.remove('hidden');
     renderRcSplitMembers(r.split_config);
   } else {
     document.getElementById('rc-split-toggle').checked = false;
     document.getElementById('rc-split-section').classList.add('hidden');
+    document.getElementById('rc-split-summary').style.display = 'none';
   }
 
   openModal('rc-modal');
 };
 
-// ── Split members render ─────────────────────────────────────
+// ── Split member rows ────────────────────────────────────────
 function renderRcSplitMembers(existingConfig = []) {
-  const container  = document.getElementById('rc-split-members');
-  const totalRow   = document.getElementById('rc-split-total-row');
+  const container = document.getElementById('rc-split-members');
+  const summary   = document.getElementById('rc-split-summary');
   if (!container) return;
 
-  const others = allMembers.filter(m => m.id !== currentUser.id);
+  // All members except the payer (payer's share is implicit)
+  const payerId = document.getElementById('rc-paid-by')?.value ?? currentUser.id;
+  const others  = allMembers.filter(m => m.id !== payerId);
+
   if (others.length === 0) {
-    container.innerHTML = '<p class="text-sm text-muted">No other members in this household.</p>';
+    container.innerHTML = '<p class="text-sm text-muted" style="padding:var(--space-2);">No other members in this household to split with.</p>';
+    if (summary) summary.style.display = 'none';
     return;
   }
 
   const amount     = parseFloat(document.getElementById('rc-amount')?.value) || 0;
+  // Equal share = total ÷ (others + payer)
   const equalShare = amount > 0 ? (amount / (others.length + 1)).toFixed(2) : '';
 
   container.innerHTML = others.map(m => {
-    // Restore existing value if editing
-    const existing = existingConfig.find(c => c.profile_id === m.id);
-    const inputVal = existing
-      ? (rcSplitType === 'percentage' ? existing.percentage ?? '' : existing.amount ?? '')
+    const saved    = existingConfig.find(c => c.profile_id === m.id);
+    const inputVal = saved
+      ? (rcSplitType === 'percentage' ? (saved.percentage ?? '') : (saved.amount ?? ''))
       : (rcSplitType === 'equal' ? equalShare : '');
+
+    const isReadonly = rcSplitType === 'equal';
 
     return `
       <div class="split-member-row">
@@ -469,7 +528,8 @@ function renderRcSplitMembers(existingConfig = []) {
           </div>
           <span class="text-sm font-medium">${escHtml(m.full_name)}</span>
         </div>
-        <div class="input-group">
+
+        <div class="input-group" style="width:140px;">
           ${rcSplitType !== 'percentage' ? '<span class="input-prefix" style="font-size:0.75rem;">₱</span>' : ''}
           <input
             class="form-control ${rcSplitType !== 'percentage' ? 'has-prefix' : ''}"
@@ -479,63 +539,80 @@ function renderRcSplitMembers(existingConfig = []) {
             step="${rcSplitType === 'percentage' ? '1' : '0.01'}"
             value="${inputVal}"
             placeholder="${rcSplitType === 'percentage' ? '0' : '0.00'}"
-            ${rcSplitType === 'equal' ? 'readonly' : ''}
+            ${isReadonly ? 'readonly style="background:var(--clr-surface-2);cursor:default;"' : ''}
             data-member-id="${m.id}"
-            oninput="updateRcSplitTotal()"
+            oninput="updateRcSplitSummary()"
           />
           ${rcSplitType === 'percentage' ? '<span class="input-suffix">%</span>' : ''}
         </div>
-        <label class="form-check" style="margin:0;">
+
+        <label class="form-check" style="margin:0;" title="Include in split">
           <input type="checkbox" class="rc-split-check" value="${m.id}" checked
-                 onchange="updateRcSplitTotal()" />
+                 onchange="updateRcSplitSummary()" />
         </label>
       </div>
     `;
   }).join('');
 
-  if (totalRow) totalRow.style.display = '';
-  updateRcSplitTotal();
+  if (summary) summary.style.display = '';
+  updateRcSplitSummary();
 }
 
-// ── Split total updater ──────────────────────────────────────
-window.updateRcSplitTotal = function() {
-  const totalEl = document.getElementById('rc-split-total');
-  if (!totalEl) return;
+// ── Running totals ───────────────────────────────────────────
+window.updateRcSplitSummary = function() {
+  const amount    = parseFloat(document.getElementById('rc-amount')?.value) || 0;
+  const inputs    = document.querySelectorAll('[id^="rc-split-amount-"]');
+  const sumTotal  = document.getElementById('rc-sum-total');
+  const sumAssign = document.getElementById('rc-sum-assigned');
+  const sumDiff   = document.getElementById('rc-sum-diff');
+  const sumDiffR  = document.getElementById('rc-sum-diff-row');
 
-  const amount = parseFloat(document.getElementById('rc-amount')?.value) || 0;
-  const inputs = document.querySelectorAll('[id^="rc-split-amount-"]');
-  let sum = 0;
-
+  let assigned = 0;
   inputs.forEach(inp => {
     const check = document.querySelector(`.rc-split-check[value="${inp.dataset.memberId}"]`);
-    if (check?.checked) sum += parseFloat(inp.value) || 0;
+    if (check?.checked) assigned += parseFloat(inp.value) || 0;
   });
 
   if (rcSplitType === 'percentage') {
-    totalEl.textContent = `${sum.toFixed(0)}%`;
-    totalEl.style.color = sum > 100 ? 'var(--clr-danger)' : 'var(--clr-success)';
+    const diff    = 100 - assigned;
+    const balanced = Math.abs(diff) < 0.01;
+    if (sumTotal)   sumTotal.textContent  = '100%';
+    if (sumAssign)  { sumAssign.textContent = `${assigned.toFixed(1)}%`; sumAssign.style.color = balanced ? 'var(--clr-success)' : ''; }
+    if (sumDiff)    { sumDiff.textContent   = `${Math.abs(diff).toFixed(1)}%`; sumDiff.style.color = balanced ? 'var(--clr-success)' : 'var(--clr-warning)'; }
+    if (sumDiffR)   sumDiffR.style.display = balanced ? 'none' : 'flex';
   } else {
-    totalEl.textContent = formatPHP(sum);
-    totalEl.style.color = sum > amount + 0.01 ? 'var(--clr-danger)' : 'var(--clr-success)';
+    const diff     = amount - assigned;
+    const balanced = Math.abs(diff) < 0.01;
+    if (sumTotal)   sumTotal.textContent  = formatPHP(amount);
+    if (sumAssign)  { sumAssign.textContent = formatPHP(assigned); sumAssign.style.color = balanced ? 'var(--clr-success)' : ''; }
+    if (sumDiff)    { sumDiff.textContent   = formatPHP(Math.abs(diff)); sumDiff.style.color = balanced ? 'var(--clr-success)' : 'var(--clr-warning)'; }
+    if (sumDiffR)   sumDiffR.style.display = balanced ? 'none' : 'flex';
   }
 };
 
-// ── Modal init ───────────────────────────────────────────────
+// ── Modal wiring ─────────────────────────────────────────────
 function initModal() {
   // Split toggle
   document.getElementById('rc-split-toggle')?.addEventListener('change', (e) => {
-    const section  = document.getElementById('rc-split-section');
-    const totalRow = document.getElementById('rc-split-total-row');
+    const section = document.getElementById('rc-split-section');
+    const summary = document.getElementById('rc-split-summary');
     if (e.target.checked) {
       section.classList.remove('hidden');
       renderRcSplitMembers();
     } else {
       section.classList.add('hidden');
-      if (totalRow) totalRow.style.display = 'none';
+      if (summary) summary.style.display = 'none';
     }
   });
 
-  // Save button
+  // Also re-render members when the payer changes
+  document.getElementById('rc-paid-by')?.addEventListener('change', () => {
+    if (document.getElementById('rc-split-toggle')?.checked) {
+      renderRcSplitMembers();
+    }
+  });
+
+  // Save
   document.getElementById('rc-submit')?.addEventListener('click', async () => {
     const title     = document.getElementById('rc-title')?.value.trim();
     const amount    = parseFloat(document.getElementById('rc-amount')?.value);
@@ -554,29 +631,27 @@ function initModal() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
 
-    // ── Build split config using top-level rcSplitType ──
+    // Build split_config array (template — applied each time an instance is generated)
     let splitConfig = [];
     if (document.getElementById('rc-split-toggle')?.checked) {
       const checks = document.querySelectorAll('.rc-split-check:checked');
-
       splitConfig = [...checks].map(c => {
         const mid   = c.value;
         const input = document.getElementById(`rc-split-amount-${mid}`);
         const val   = parseFloat(input?.value) || 0;
 
+        // Always store the calculated ₱ amount so generateNow can use it directly
         const calcAmount = rcSplitType === 'percentage'
-          ? amount * (val / 100)  // convert % to actual ₱ amount
-          : val;                  // equal or fixed — use as-is
+          ? parseFloat((amount * (val / 100)).toFixed(2))
+          : parseFloat(val.toFixed(2));
 
         return {
           profile_id:  mid,
           split_type:  rcSplitType,
-          amount:      parseFloat(calcAmount.toFixed(2)),
+          amount:      calcAmount,
           percentage:  rcSplitType === 'percentage' ? val : null,
         };
       });
-
-      console.log(`Saving split (type: ${rcSplitType}):`, splitConfig);
     }
 
     const payload = {
@@ -593,12 +668,15 @@ function initModal() {
       created_by:    currentUser.id,
     };
 
-    if (editingId) {
-      const { error } = await supabase.from('recurring_expenses').update(payload).eq('id', editingId);
-      if (error) { showToast('Failed to update.', 'error'); btn.disabled=false; btn.textContent='Save'; return; }
-    } else {
-      const { error } = await supabase.from('recurring_expenses').insert(payload);
-      if (error) { showToast('Failed to create.', 'error'); btn.disabled=false; btn.textContent='Save'; return; }
+    const { error } = editingId
+      ? await supabase.from('recurring_expenses').update(payload).eq('id', editingId)
+      : await supabase.from('recurring_expenses').insert(payload);
+
+    if (error) {
+      showToast('Failed to save.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Save';
+      return;
     }
 
     showToast(editingId ? 'Updated!' : 'Recurring expense created!', 'success');
@@ -617,24 +695,68 @@ window.toggleRc = async function(id, isActive) {
   await loadRecurring();
 };
 
+// ── generateNow — THE KEY FIX ────────────────────────────────
+// Previously this only created an expenses row.
+// Now it also creates expense_splits rows from split_config,
+// which is what the Splits page reads.
 window.generateNow = async function(id) {
   const r = allRecurring.find(x => x.id === id);
   if (!r) return;
-  const { error } = await supabase.from('expenses').insert({
-    household_id: r.household_id,
-    title:        r.title,
-    amount:       r.amount,
-    category_id:  r.category_id,
-    paid_by:      r.paid_by,
-    expense_date: new Date().toISOString().split('T')[0],
-    due_date:     r.next_due_date,
-    is_recurring: true,
-    recurring_id: r.id,
-    status:       'unpaid',
-    created_by:   currentUser.id,
-  });
-  if (error) { showToast('Failed to generate expense.', 'error'); return; }
-  showToast('Expense generated! ⚡', 'success');
+
+  const btn = document.querySelector(`button[onclick="generateNow('${id}')"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+
+  // 1. Insert the expense and retrieve its new ID
+  const { data: newExpense, error: expError } = await supabase
+    .from('expenses')
+    .insert({
+      household_id: r.household_id,
+      title:        r.title,
+      amount:       r.amount,
+      category_id:  r.category_id,
+      paid_by:      r.paid_by,
+      expense_date: new Date().toISOString().split('T')[0],
+      due_date:     r.next_due_date,
+      is_recurring: true,
+      recurring_id: r.id,
+      status:       'unpaid',
+      created_by:   currentUser.id,
+    })
+    .select('id')
+    .single();
+
+  if (expError) {
+    console.error('Generate expense error:', expError);
+    showToast('Failed to generate expense.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '⚡'; }
+    return;
+  }
+
+  // 2. Create expense_splits from the stored split_config template.
+  //    This is what populates the Splits page — without this step,
+  //    splits from recurring expenses never appear there.
+  const splitConfig = r.split_config;
+  if (Array.isArray(splitConfig) && splitConfig.length > 0) {
+    const splitRows = splitConfig.map(sc => ({
+      expense_id: newExpense.id,
+      profile_id: sc.profile_id,
+      split_type: sc.split_type,
+      amount:     sc.amount,
+      percentage: sc.percentage ?? null,
+      is_settled: false,
+    }));
+
+    const { error: splitError } = await supabase.from('expense_splits').insert(splitRows);
+    if (splitError) {
+      console.error('expense_splits insert error:', splitError);
+      showToast('Expense created but split records failed — check console.', 'warning');
+      if (btn) { btn.disabled = false; btn.textContent = '⚡'; }
+      return;
+    }
+  }
+
+  showToast('Expense generated! ⚡ Splits recorded.', 'success');
+  if (btn) { btn.disabled = false; btn.textContent = '⚡'; }
 };
 
 window.deleteRc = async function(id) {
