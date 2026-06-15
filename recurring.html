@@ -312,6 +312,7 @@ function renderList() {
 
 function openAdd() {
   editingId = null;
+    rcSplitType = 'equal';
   document.getElementById('rc-modal-title').textContent = 'Add Recurring Expense';
   document.getElementById('rc-title').value      = '';
   document.getElementById('rc-amount').value     = '';
@@ -405,17 +406,24 @@ function initModal() {
     const btn = document.getElementById('rc-submit');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
 
-    // Build split config
-    let splitConfig = [];
-    if (document.getElementById('rc-split-toggle')?.checked) {
-      const checks = document.querySelectorAll('.rc-split-check:checked');
-      const equalAmt = amount / (checks.length + 1);
-      splitConfig = [...checks].map(c => ({
-        profile_id: c.value,
-        split_type: 'equal',
-        amount: equalAmt,
-      }));
-    }
+// Build split config with proper type support
+let splitConfig = [];
+if (document.getElementById('rc-split-toggle')?.checked) {
+  const checks = document.querySelectorAll('.rc-split-check:checked');
+  splitConfig = [...checks].map(c => {
+    const mid   = c.value;
+    const input = document.getElementById(`rc-split-amount-${mid}`);
+    const val   = parseFloat(input?.value) || 0;
+    return {
+      profile_id: mid,
+      split_type: rcSplitType,
+      amount:     rcSplitType === 'equal'      ? val
+                : rcSplitType === 'fixed'       ? val
+                : amount * (val / 100),          // percentage → actual amount
+      percentage: rcSplitType === 'percentage'  ? val : null,
+    };
+  });
+}
 
     const payload = {
       household_id: currentProfile.household_id,
@@ -446,20 +454,108 @@ function initModal() {
   });
 }
 
+let rcSplitType = 'equal';
+
 function renderRcSplitMembers() {
   const container = document.getElementById('rc-split-members');
   if (!container) return;
+
   const others = allMembers.filter(m => m.id !== currentUser.id);
-  if (others.length === 0) { container.innerHTML = '<p class="text-sm text-muted">No other members.</p>'; return; }
-  container.innerHTML = others.map(m => `
-    <label class="form-check" style="padding:var(--space-2) 0; border-bottom:1px solid var(--clr-border);">
-      <input type="checkbox" class="rc-split-check" value="${m.id}" checked />
-      <div class="avatar" style="width:28px;height:28px;font-size:0.65rem;">${m.full_name[0].toUpperCase()}</div>
-      <span class="form-check-label">${escHtml(m.full_name)}</span>
-      <span class="ml-auto text-xs text-muted">Equal split</span>
-    </label>
-  `).join('');
+  if (others.length === 0) {
+    container.innerHTML = '<p class="text-sm text-muted">No other members in this household.</p>';
+    return;
+  }
+
+  const amount = parseFloat(document.getElementById('rc-amount')?.value) || 0;
+  const equalShare = amount > 0 ? (amount / (others.length + 1)).toFixed(2) : '';
+
+  container.innerHTML = `
+    <!-- Split type selector -->
+    <div class="split-type-tabs mb-4">
+      <button class="split-type-tab ${rcSplitType === 'equal'      ? 'active' : ''}" data-rc-split="equal">Equal Split</button>
+      <button class="split-type-tab ${rcSplitType === 'percentage' ? 'active' : ''}" data-rc-split="percentage">By %</button>
+      <button class="split-type-tab ${rcSplitType === 'fixed'      ? 'active' : ''}" data-rc-split="fixed">Fixed ₱</button>
+    </div>
+
+    <!-- Member rows -->
+    <div id="rc-split-rows">
+      ${others.map(m => `
+        <div class="split-member-row" id="rc-split-row-${m.id}">
+          <div class="flex items-center gap-2">
+            <div class="avatar" style="width:28px;height:28px;font-size:0.65rem;">
+              ${m.full_name[0].toUpperCase()}
+            </div>
+            <span class="text-sm font-medium">${escHtml(m.full_name)}</span>
+          </div>
+          <div class="input-group">
+            ${rcSplitType !== 'percentage' ? '<span class="input-prefix" style="font-size:0.75rem;">₱</span>' : ''}
+            <input
+              class="form-control ${rcSplitType !== 'percentage' ? 'has-prefix' : ''}"
+              style="font-size:var(--text-sm);padding:var(--space-2) var(--space-3);${rcSplitType !== 'percentage' ? 'padding-left:var(--space-6);' : ''}"
+              id="rc-split-amount-${m.id}"
+              type="number" min="0"
+              step="${rcSplitType === 'percentage' ? '1' : '0.01'}"
+              value="${rcSplitType === 'equal' ? equalShare : ''}"
+              placeholder="${rcSplitType === 'percentage' ? '0' : '0.00'}"
+              ${rcSplitType === 'equal' ? 'readonly' : ''}
+              data-member-id="${m.id}"
+              oninput="updateRcSplitTotal()"
+            />
+            ${rcSplitType === 'percentage' ? '<span class="input-suffix">%</span>' : ''}
+          </div>
+          <label class="form-check">
+            <input type="checkbox" class="rc-split-check" value="${m.id}" checked
+                   onchange="updateRcSplitTotal()" />
+          </label>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- Total row -->
+    <div class="split-total-row mt-4">
+      <span class="text-sm">Total allocated:</span>
+      <span id="rc-split-total" class="font-mono font-semibold">—</span>
+    </div>
+  `;
+
+  // Wire up split type tabs
+  container.querySelectorAll('[data-rc-split]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      rcSplitType = btn.dataset.rcSplit;
+      renderRcSplitMembers();
+    });
+  });
+
+  // Auto-update when amount changes
+  document.getElementById('rc-amount')?.addEventListener('input', () => {
+    if (rcSplitType === 'equal') renderRcSplitMembers();
+  });
+
+  updateRcSplitTotal();
 }
+
+window.updateRcSplitTotal = function() {
+  const totalEl  = document.getElementById('rc-split-total');
+  if (!totalEl) return;
+
+  const amount   = parseFloat(document.getElementById('rc-amount')?.value) || 0;
+  const inputs   = document.querySelectorAll('[id^="rc-split-amount-"]');
+  let sum = 0;
+
+  inputs.forEach(inp => {
+    const check = document.querySelector(`.rc-split-check[value="${inp.dataset.memberId}"]`);
+    if (check?.checked) sum += parseFloat(inp.value) || 0;
+  });
+
+  if (rcSplitType === 'percentage') {
+    totalEl.textContent = `${sum.toFixed(0)}%`;
+    totalEl.style.color = sum > 100 ? 'var(--clr-danger)' : 'var(--clr-success)';
+  } else {
+    const php = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(sum);
+    totalEl.textContent = php;
+    totalEl.style.color = sum > amount + 0.01 ? 'var(--clr-danger)' : 'var(--clr-success)';
+  }
+};
 </script>
 </body>
 </html>
