@@ -755,6 +755,9 @@ window.generateNow = async function(id) {
     }
   }
 
+  // Auto-reminder: email reminder 1 day before the due date
+  await syncAutoReminder(newExpense.id, r.next_due_date);
+
   showToast('Expense generated! ⚡ Splits recorded.', 'success');
   if (btn) { btn.disabled = false; btn.textContent = '⚡'; }
 };
@@ -766,6 +769,32 @@ window.deleteRc = async function(id) {
   showToast('Deleted.', 'info');
   await loadRecurring();
 };
+
+/**
+ * Syncs a single auto-generated reminder for an expense based on its due date.
+ * - If dueDate is set  → create an email reminder 1 day before at 9:00 AM
+ * - If dueDate is null → no-op
+ *
+ * Auto-reminders are identified by the sentinel message '__auto__'.
+ */
+async function syncAutoReminder(expenseId, dueDate) {
+  if (!dueDate) return;
+
+  const due = new Date(dueDate + 'T00:00:00');
+  due.setDate(due.getDate() - 1);
+  due.setHours(9, 0, 0, 0);
+  const remindAt = due.toISOString();
+
+  await supabase.from('reminders').insert({
+    expense_id: expenseId,
+    profile_id: currentUser.id,
+    remind_at:  remindAt,
+    type:       'email',
+    message:    '__auto__',
+    is_sent:    false,
+    is_read:    false,
+  });
+}
 </script>
 </body>
 </html>

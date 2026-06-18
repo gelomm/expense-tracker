@@ -491,11 +491,72 @@ async function saveExpense() {
     }
   }
 
+  // ── Auto-reminder based on due date ──────────────────────────────────────
+  // Rules:
+  //   • New expense with due date   → create a reminder 1 day before at 9 AM
+  //   • Edited expense, due date changed → update existing auto-reminder to new date
+  //   • Edited expense, due date removed → delete existing auto-reminder
+  if (expenseId) {
+    await syncAutoReminder(expenseId, dueDate);
+  }
+
   showToast(editingId ? 'Expense updated!' : 'Expense added!', 'success');
   closeModal('expense-modal');
   await loadExpenses();
   btn.disabled = false;
   btn.textContent = 'Save Expense';
+}
+
+/**
+ * Syncs a single auto-generated reminder for an expense based on its due date.
+ * - If dueDate is set   → upsert a reminder for 1 day before at 9:00 AM (PH time)
+ * - If dueDate is null  → delete any existing auto-reminder for this expense
+ *
+ * Auto-reminders are identified by the sentinel message '__auto__' so they
+ * can be distinguished from manually created reminders without a schema change.
+ */
+async function syncAutoReminder(expenseId, dueDate) {
+  if (dueDate) {
+    // Compute remind_at: due date minus 1 day at 09:00 local time (Asia/Manila)
+    const due = new Date(dueDate + 'T00:00:00');
+    due.setDate(due.getDate() - 1);
+    due.setHours(9, 0, 0, 0);
+    const remindAt = due.toISOString();
+
+    // Check if an auto-reminder already exists for this expense
+    const { data: existing } = await supabase
+      .from('reminders')
+      .select('id')
+      .eq('expense_id', expenseId)
+      .eq('message', '__auto__')
+      .maybeSingle();
+
+    if (existing) {
+      // Update the remind_at to reflect the new due date
+      await supabase
+        .from('reminders')
+        .update({ remind_at: remindAt, is_sent: false })
+        .eq('id', existing.id);
+    } else {
+      // Create a new auto-reminder
+      await supabase.from('reminders').insert({
+        expense_id:  expenseId,
+        profile_id:  currentUser.id,
+        remind_at:   remindAt,
+        type:        'email',
+        message:     '__auto__',
+        is_sent:     false,
+        is_read:     false,
+      });
+    }
+  } else {
+    // Due date was removed — delete the auto-reminder if it exists
+    await supabase
+      .from('reminders')
+      .delete()
+      .eq('expense_id', expenseId)
+      .eq('message', '__auto__');
+  }
 }
 
 // ============================================================

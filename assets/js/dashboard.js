@@ -482,6 +482,9 @@ function initQuickAdd() {
         await supabase.from('expense_splits').insert(splits);
       }
 
+      // Auto-reminder: create an email reminder 1 day before due date
+      await syncAutoReminder(expense.id, dueDate);
+
       showToast('Expense added!', 'success');
       closeModal('quick-add-modal');
       document.getElementById('qa-title').value = '';
@@ -542,4 +545,30 @@ function showEmptyHousehold() {
       </div>
       <a href="/expense-tracker/settings.html" class="btn btn-primary">Go to Settings</a>
     </div>`;
+}
+
+/**
+ * Syncs a single auto-generated reminder for an expense based on its due date.
+ * - If dueDate is set  → create a reminder for 1 day before at 9:00 AM
+ * - If dueDate is null → no-op (quick-add never edits existing expenses)
+ *
+ * Auto-reminders are identified by the sentinel message '__auto__'.
+ */
+async function syncAutoReminder(expenseId, dueDate) {
+  if (!dueDate) return;
+
+  const due = new Date(dueDate + 'T00:00:00');
+  due.setDate(due.getDate() - 1);
+  due.setHours(9, 0, 0, 0);
+  const remindAt = due.toISOString();
+
+  await supabase.from('reminders').insert({
+    expense_id: expenseId,
+    profile_id: currentUser.id,
+    remind_at:  remindAt,
+    type:       'email',
+    message:    '__auto__',
+    is_sent:    false,
+    is_read:    false,
+  });
 }
