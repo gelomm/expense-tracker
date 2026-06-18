@@ -288,12 +288,20 @@ function renderReminders() {
     const bgIcon   = r.type === 'email' ? '📧' : r.type === 'both' ? '📬' : '🔔';
     const iconBg   = isUnread ? 'var(--clr-primary-light)' : 'var(--clr-surface-2)';
 
+    const isAuto      = r.message === '__auto__';
+    const displayTitle = isAuto
+      ? (linked ? `Due tomorrow: ${linked}` : 'Upcoming expense due tomorrow')
+      : escHtml(r.message ?? (linked ? `Reminder: ${linked}` : 'Expense Reminder'));
+
     return `
       <div class="reminder-item ${isUnread ? 'unread' : ''}">
         <div class="reminder-dot ${isUnread ? '' : 'read'}"></div>
         <div class="reminder-icon" style="background:${iconBg};">${bgIcon}</div>
         <div class="reminder-content">
-          <div class="reminder-title">${escHtml(r.message ?? (linked ? `Reminder: ${linked}` : 'Expense Reminder'))}</div>
+          <div class="reminder-title">
+            ${displayTitle}
+            ${isAuto ? '<span class="badge badge-info" style="font-size:10px;margin-left:6px;">Auto</span>' : ''}
+          </div>
           <div class="reminder-meta">
             <span>${typeIcon[r.type] ?? '🔔'} ${r.type === 'in_app' ? 'In-App' : r.type === 'email' ? 'Email' : 'Both'}</span>
             <span>⏰ ${formatDateTime(r.remind_at)}</span>
