@@ -780,12 +780,15 @@ window.deleteRc = async function(id) {
 async function syncAutoReminder(expenseId, dueDate) {
   if (!dueDate) return;
 
+  // Compute remind_at: 1 day before due date at 09:00.
+  // For overdue items this may be in the past — we still insert it
+  // so it shows as "Pending" on the Reminders page.
   const due = new Date(dueDate + 'T00:00:00');
   due.setDate(due.getDate() - 1);
   due.setHours(9, 0, 0, 0);
   const remindAt = due.toISOString();
 
-  await supabase.from('reminders').insert({
+  const { error } = await supabase.from('reminders').insert({
     expense_id: expenseId,
     profile_id: currentUser.id,
     remind_at:  remindAt,
@@ -794,6 +797,11 @@ async function syncAutoReminder(expenseId, dueDate) {
     is_sent:    false,
     is_read:    false,
   });
+
+  if (error) {
+    console.error('Auto-reminder insert failed:', error);
+    showToast('Expense created but auto-reminder failed — check console.', 'warning');
+  }
 }
 </script>
 </body>

@@ -533,13 +533,14 @@ async function syncAutoReminder(expenseId, dueDate) {
 
     if (existing) {
       // Update the remind_at to reflect the new due date
-      await supabase
+      const { error } = await supabase
         .from('reminders')
         .update({ remind_at: remindAt, is_sent: false })
         .eq('id', existing.id);
+      if (error) console.error('Auto-reminder update failed:', error);
     } else {
       // Create a new auto-reminder
-      await supabase.from('reminders').insert({
+      const { error } = await supabase.from('reminders').insert({
         expense_id:  expenseId,
         profile_id:  currentUser.id,
         remind_at:   remindAt,
@@ -548,6 +549,7 @@ async function syncAutoReminder(expenseId, dueDate) {
         is_sent:     false,
         is_read:     false,
       });
+      if (error) console.error('Auto-reminder insert failed:', error);
     }
   } else {
     // Due date was removed — delete the auto-reminder if it exists

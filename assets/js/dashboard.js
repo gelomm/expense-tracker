@@ -562,7 +562,7 @@ async function syncAutoReminder(expenseId, dueDate) {
   due.setHours(9, 0, 0, 0);
   const remindAt = due.toISOString();
 
-  await supabase.from('reminders').insert({
+  const { error } = await supabase.from('reminders').insert({
     expense_id: expenseId,
     profile_id: currentUser.id,
     remind_at:  remindAt,
@@ -571,4 +571,9 @@ async function syncAutoReminder(expenseId, dueDate) {
     is_sent:    false,
     is_read:    false,
   });
+
+  if (error) {
+    console.error('Auto-reminder insert failed:', error);
+    showToast('Expense created but auto-reminder failed — check console.', 'warning');
+  }
 }
