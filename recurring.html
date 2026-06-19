@@ -668,16 +668,28 @@ function initModal() {
       created_by:    currentUser.id,
     };
 
-    const { error } = editingId
-      ? await supabase.from('recurring_expenses').update(payload).eq('id', editingId)
-      : await supabase.from('recurring_expenses').insert(payload);
+    let savedId = editingId;
 
-    if (error) {
-      showToast('Failed to save.', 'error');
-      btn.disabled = false;
-      btn.textContent = 'Save';
-      return;
+    if (editingId) {
+      const { error } = await supabase.from('recurring_expenses').update(payload).eq('id', editingId);
+      if (error) {
+        showToast('Failed to save.', 'error');
+        btn.disabled = false; btn.textContent = 'Save'; return;
+      }
+    } else {
+      const { data: inserted, error } = await supabase
+        .from('recurring_expenses').insert(payload).select('id').single();
+      if (error) {
+        showToast('Failed to save.', 'error');
+        btn.disabled = false; btn.textContent = 'Save'; return;
+      }
+      savedId = inserted.id;
     }
+
+    // Auto-reminder: sync based on start_date (which is next_due_date for new items).
+    // For new items   → create an auto-reminder 1 day before start_date at 09:00.
+    // For edited items → update or delete the reminder if start_date changed.
+    await syncRecurringAutoReminder(savedId, startDate, !!editingId);
 
     showToast(editingId ? 'Updated!' : 'Recurring expense created!', 'success');
     closeModal('rc-modal');
@@ -777,6 +789,55 @@ window.deleteRc = async function(id) {
  *
  * Auto-reminders are identified by the sentinel message '__auto__'.
  */
+/**
+ * Syncs an auto-reminder tied to the recurring_expense template itself
+ * (not a generated expense instance). Uses recurring_expense_id instead of expense_id.
+ * - isEdit=false → always insert a new reminder
+ * - isEdit=true  → update existing reminder if start_date changed, or delete if cleared
+ */
+async function syncRecurringAutoReminder(recurringId, startDate, isEdit) {
+  if (!startDate) {
+    if (isEdit) {
+      await supabase.from('reminders').delete()
+        .eq('recurring_expense_id', recurringId).eq('message', '__auto__');
+    }
+    return;
+  }
+
+  const due = new Date(startDate + 'T00:00:00');
+  due.setDate(due.getDate() - 1);
+  due.setHours(9, 0, 0, 0);
+  const remindAt = due.toISOString();
+
+  if (isEdit) {
+    const { data: existing } = await supabase.from('reminders')
+      .select('id').eq('recurring_expense_id', recurringId).eq('message', '__auto__').maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase.from('reminders')
+        .update({ remind_at: remindAt, is_sent: false }).eq('id', existing.id);
+      if (error) console.error('Auto-reminder update failed:', error);
+      return;
+    }
+  }
+
+  // Insert new auto-reminder
+  const { error } = await supabase.from('reminders').insert({
+    recurring_expense_id: recurringId,
+    profile_id:           currentUser.id,
+    remind_at:            remindAt,
+    type:                 'email',
+    message:              '__auto__',
+    is_sent:              false,
+    is_read:              false,
+  });
+
+  if (error) {
+    console.error('Auto-reminder insert failed:', error);
+    showToast('Saved but auto-reminder failed — check console.', 'warning');
+  }
+}
+
 async function syncAutoReminder(expenseId, dueDate) {
   if (!dueDate) return;
 
