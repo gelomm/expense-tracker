@@ -81,12 +81,14 @@ async function fetchBudgets(householdId, month) {
 }
 
 async function fetchRecurring(householdId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('recurring_expenses')
     .select('*, category:categories(*), payer:profiles(id,full_name)')
     .eq('household_id', householdId)
     .eq('is_active', true)
     .order('next_due_date', { ascending: true });
+  if (error) console.error('fetchRecurring error:', error);
+  console.log('fetchRecurring result:', data);
   return data ?? [];
 }
 
@@ -115,14 +117,38 @@ async function fetchMembers(householdId) {
 function renderKPIs(expenses, budgets, recurring) {
   const totalSpent  = expenses.reduce((s, e) => s + Number(e.amount), 0);
   const totalBudget = budgets.reduce((s, b) => s + Number(b.amount), 0);
-  const overdue     = expenses.filter(e => e.status === 'overdue').length;
-  const upcoming7   = expenses.filter(e => {
+
+  // Bug fix: overdue flag_overdue_expenses() only runs server-side via cron.
+  // Count overdue client-side instead: unpaid/overdue with a past due date.
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const overdue = expenses.filter(e => {
+    if (e.status === 'paid') return false;
+    if (!e.due_date) return false;
+    return new Date(e.due_date) < today;
+  }).length;
+
+  const upcoming7 = expenses.filter(e => {
     if (!e.due_date) return false;
     const d = daysUntil(e.due_date);
     return d >= 0 && d <= 7 && e.status !== 'paid';
   }).length;
-  const recurringTotal = recurring.reduce((s, r) => s + Number(r.amount), 0);
-  const budgetPct      = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : null;
+
+  // Bug fix: normalize recurring amounts to a monthly equivalent so the KPI
+  // reflects actual monthly cost regardless of frequency.
+  const freqToMonthly = {
+    daily:      30,
+    weekly:     4.33,
+    biweekly:   2.17,
+    monthly:    1,
+    bimonthly:  0.5,
+    annually:   1 / 12,
+  };
+  const recurringTotal = recurring.reduce((s, r) => {
+    const multiplier = freqToMonthly[r.frequency] ?? 1;
+    return s + Number(r.amount) * multiplier;
+  }, 0);
+
+  const budgetPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : null;
 
   const grid = document.getElementById('kpi-grid');
   grid.innerHTML = `
