@@ -288,9 +288,27 @@ function renderReminders() {
     const bgIcon   = r.type === 'email' ? '📧' : r.type === 'both' ? '📬' : '🔔';
     const iconBg   = isUnread ? 'var(--clr-primary-light)' : 'var(--clr-surface-2)';
 
-    const isAuto      = r.message === '__auto__';
+    const isAuto = r.message === '__auto__';
+
+    // For auto-reminders, compute the actual due date (remind_at + 1 day)
+    // and describe it relative to today instead of hardcoding "Due tomorrow".
+    let autoLabel = 'Upcoming expense due soon';
+    if (isAuto) {
+      const dueDate = new Date(r.remind_at);
+      dueDate.setDate(dueDate.getDate() + 1);
+      dueDate.setHours(0, 0, 0, 0);
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((dueDate - todayMidnight) / (1000 * 60 * 60 * 24));
+      const dueName = linked ?? 'expense';
+      if (diffDays < 0)       autoLabel = `Overdue: ${dueName} (${Math.abs(diffDays)}d ago)`;
+      else if (diffDays === 0) autoLabel = `Due today: ${dueName}`;
+      else if (diffDays === 1) autoLabel = `Due tomorrow: ${dueName}`;
+      else                     autoLabel = `Due in ${diffDays} days: ${dueName}`;
+    }
+
     const displayTitle = isAuto
-      ? (linked ? `Due tomorrow: ${linked}` : 'Upcoming expense due tomorrow')
+      ? autoLabel
       : escHtml(r.message ?? (linked ? `Reminder: ${linked}` : 'Expense Reminder'));
 
     return `
