@@ -6,12 +6,15 @@
   <title>Splits — WeXpense</title>
   <link rel="stylesheet" href="assets/css/main.css" />
   <style>
+    /* ── Layout ─────────────────────────────────────────────── */
     .splits-layout {
       display: grid;
-      grid-template-columns: 320px 1fr;
+      grid-template-columns: 320px 1fr 300px;
       gap: var(--space-5);
       align-items: start;
     }
+
+    /* ── Member cards ────────────────────────────────────────── */
     .member-card {
       background: var(--clr-surface);
       border: 1px solid var(--clr-border);
@@ -25,6 +28,9 @@
     }
     .member-card:hover { box-shadow: var(--shadow-md); border-color: var(--clr-primary); }
     .member-card.selected { border-color: var(--clr-primary); background: var(--clr-primary-light); }
+    .member-card.self-card { border-style: dashed; }
+    .member-card.self-card.selected { border-style: solid; }
+
     .balance-pill {
       margin-left: auto;
       font-family: var(--font-mono);
@@ -36,6 +42,8 @@
     .balance-positive { background: var(--clr-success-light); color: var(--clr-success); }
     .balance-negative { background: var(--clr-danger-light);  color: var(--clr-danger); }
     .balance-zero     { background: var(--clr-surface-2);     color: var(--clr-text-muted); }
+
+    /* ── Detail panel ────────────────────────────────────────── */
     .split-detail-card {
       background: var(--clr-surface);
       border: 1px solid var(--clr-border);
@@ -60,7 +68,8 @@
     }
     .split-expense-row:last-child { border-bottom: none; }
     .split-expense-row:hover { background: var(--clr-surface-2); }
-    .split-expense-row.settled { opacity: 0.5; }
+
+    /* ── Net summary box ─────────────────────────────────────── */
     .net-summary-box {
       background: var(--clr-surface-2);
       border-radius: var(--radius-lg);
@@ -75,6 +84,8 @@
       border-bottom: 1px solid var(--clr-border);
     }
     .net-row:last-child { border-bottom: none; }
+
+    /* ── Settlement history ──────────────────────────────────── */
     .history-item {
       display: flex;
       align-items: center;
@@ -84,8 +95,121 @@
       font-size: var(--text-sm);
     }
     .history-item:last-child { border-bottom: none; }
+
+    /* ── Forecast card ───────────────────────────────────────── */
+    .forecast-card {
+      background: var(--clr-surface);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      position: sticky;
+      top: calc(var(--topbar-height) + var(--space-5));
+    }
+    .forecast-header {
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      background: var(--clr-surface-2);
+    }
+    .forecast-totals {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-1);
+      padding: var(--space-4) var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      background: var(--clr-surface-2);
+    }
+    .forecast-total-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--clr-text-muted);
+      margin-bottom: var(--space-1);
+    }
+    .forecast-total-value {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: var(--text-lg);
+    }
+    .forecast-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--space-3) var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      transition: background var(--transition-fast);
+    }
+    .forecast-item:last-child { border-bottom: none; }
+    .forecast-item:hover { background: var(--clr-surface-2); }
+    .forecast-item-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+    }
+    .forecast-item-name {
+      font-size: var(--text-sm);
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .forecast-item-total {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .forecast-item-share {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: var(--text-xs);
+      color: var(--clr-text-muted);
+    }
+    .forecast-item-share-amt {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--clr-primary);
+    }
+    .forecast-type-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: var(--radius-full);
+      flex-shrink: 0;
+    }
+    .forecast-type-recurring {
+      background: var(--clr-primary-light);
+      color: var(--clr-primary-dark);
+    }
+    .forecast-type-onetime {
+      background: var(--clr-warning-light);
+      color: #92400E;
+    }
+
+    /* ── Self detail panel ──────────────────────────────────── */
+    .self-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-3) var(--space-5);
+      border-bottom: 1px solid var(--clr-border);
+      font-size: var(--text-sm);
+    }
+    .self-stat-row:last-child { border-bottom: none; }
+
+    /* ── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 1200px) {
+      .splits-layout { grid-template-columns: 280px 1fr; }
+      .forecast-col  { grid-column: 1 / -1; }
+      .forecast-card { position: static; }
+    }
     @media (max-width: 900px) {
       .splits-layout { grid-template-columns: 1fr; }
+      .forecast-col  { grid-column: 1; }
     }
   </style>
 </head>
@@ -102,6 +226,7 @@
         <button class="btn btn-ghost btn-icon" id="theme-toggle"><span id="theme-icon">🌙</span></button>
       </div>
     </header>
+
     <div class="page-content">
 
       <!-- Net Summary -->
@@ -110,7 +235,8 @@
       </div>
 
       <div class="splits-layout">
-        <!-- Left: Member list -->
+
+        <!-- ── Col 1: Member list + history ──────────────────── -->
         <div>
           <div class="section-title mb-4">Household Members</div>
           <div id="member-list" style="display:flex;flex-direction:column;gap:var(--space-3);">
@@ -118,14 +244,13 @@
             <div class="skeleton" style="height:68px;border-radius:12px;"></div>
           </div>
 
-          <!-- Settlement History -->
           <div class="section-title mt-6 mb-3">Settlement History</div>
           <div class="card" id="history-list" style="padding:0;overflow:hidden;">
             <div style="padding:var(--space-4);color:var(--clr-text-muted);font-size:var(--text-sm);">Loading…</div>
           </div>
         </div>
 
-        <!-- Right: Detail panel -->
+        <!-- ── Col 2: Detail panel ───────────────────────────── -->
         <div id="split-detail-panel">
           <div class="empty-state">
             <div class="empty-icon">👥</div>
@@ -133,10 +258,37 @@
             <div class="empty-text">Click a household member on the left to see your shared expenses and settle up.</div>
           </div>
         </div>
-      </div>
-    </div>
+
+        <!-- ── Col 3: Monthly forecast ──────────────────────── -->
+        <div class="forecast-col">
+          <div class="forecast-card" id="forecast-card">
+            <div class="forecast-header">
+              <div class="card-title">📅 Monthly Forecast</div>
+              <div class="card-subtitle" id="forecast-subtitle" style="margin-top:4px;">Loading…</div>
+            </div>
+            <div id="forecast-totals-area" class="forecast-totals">
+              <div>
+                <div class="forecast-total-label">Household Total</div>
+                <div class="forecast-total-value skeleton" style="width:80px;height:24px;border-radius:4px;"></div>
+              </div>
+              <div>
+                <div class="forecast-total-label">Your Share</div>
+                <div class="forecast-total-value skeleton" style="width:80px;height:24px;border-radius:4px;"></div>
+              </div>
+            </div>
+            <div id="forecast-list">
+              <div style="padding:var(--space-4);text-align:center;">
+                <div class="spinner" style="margin:0 auto;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /splits-layout -->
+    </div><!-- /page-content -->
   </main>
 </div>
+
 <nav class="mobile-bottom-nav"></nav>
 <div class="toast-container"></div>
 
@@ -146,31 +298,54 @@ import { initAppShell, initMonthFilter, showToast, escHtml, confirm } from './as
 
 let currentUser, currentProfile, currentMonth;
 let allMembers = [], allSplits = [], settledHistory = [];
+let allRecurring = [], allOneTime = [];
 let selectedMemberId = null;
+let isOwner = false;
 
+// ── Frequency → monthly multiplier ──────────────────────────
+const freqToMonthly = {
+  daily:      30,
+  weekly:     4.33,
+  biweekly:   2.17,
+  monthly:    1,
+  bimonthly:  0.5,
+  annually:   1 / 12,
+};
+
+// ── Boot ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = await initAppShell('splits');
   if (!auth) return;
   currentUser    = auth.user;
   currentProfile = auth.profile;
+  isOwner        = currentProfile?.role === 'owner';
 
   currentMonth = initMonthFilter(async (m) => { currentMonth = m; await loadAll(); });
   await loadAll();
 });
 
+// ── Master load ──────────────────────────────────────────────
 async function loadAll() {
   const { start, end } = monthBounds(currentMonth);
-  await Promise.all([loadMembers(), loadSplits(start, end), loadHistory()]);
+  await Promise.all([
+    loadMembers(),
+    loadSplits(start, end),
+    loadHistory(),
+    loadForecastData(start, end),
+  ]);
   renderNetSummary();
   renderMemberList();
+  renderForecast();
   if (selectedMemberId) renderDetail(selectedMemberId);
 }
 
+// ── Data loaders ─────────────────────────────────────────────
 async function loadMembers() {
   const { data } = await supabase
-    .from('profiles').select('id, full_name')
+    .from('profiles').select('id, full_name, role')
     .eq('household_id', currentProfile.household_id);
-  allMembers = (data ?? []).filter(m => m.id !== currentUser.id);
+  // Keep all members; self-filtering handled in render
+  allMembers = data ?? [];
 }
 
 async function loadSplits(start, end) {
@@ -194,26 +369,50 @@ async function loadHistory() {
     .order('settled_at', { ascending: false })
     .limit(20);
 
-  settledHistory = (data ?? []).filter(s => s.expense?.household_id === currentProfile.household_id);
+  settledHistory = (data ?? []).filter(s =>
+    s.expense?.household_id === currentProfile.household_id
+  );
   renderHistory();
 }
 
+async function loadForecastData(start, end) {
+  // Recurring expenses (active)
+  const { data: recData } = await supabase
+    .from('recurring_expenses')
+    .select('id, title, amount, frequency, paid_by, split_config, category:categories(icon)')
+    .eq('household_id', currentProfile.household_id)
+    .eq('is_active', true);
+  allRecurring = recData ?? [];
+
+  // One-time unpaid expenses this month
+  const { data: expData } = await supabase
+    .from('expenses')
+    .select('id, title, amount, due_date, paid_by, expense_date, splits:expense_splits(profile_id, amount)')
+    .eq('household_id', currentProfile.household_id)
+    .eq('is_deleted', false)
+    .neq('status', 'paid')
+    .gte('expense_date', start)
+    .lte('expense_date', end);
+  allOneTime = expData ?? [];
+}
+
+// ── Net summary ──────────────────────────────────────────────
 function renderNetSummary() {
   const netBox = document.getElementById('net-summary');
   if (!netBox) return;
 
-  // Calculate net balance per member
   const balances = {};
-  for (const m of allMembers) balances[m.id] = { name: m.full_name, owe: 0, owed: 0 };
+  for (const m of allMembers) {
+    if (m.id !== currentUser.id) {
+      balances[m.id] = { name: m.full_name, owed: 0 };
+    }
+  }
 
   for (const s of allSplits) {
     const mid = s.profile_id;
     if (!balances[mid]) continue;
-    const paidByMe = s.expense?.paid_by === currentUser.id;
-    if (paidByMe) {
+    if (s.expense?.paid_by === currentUser.id) {
       balances[mid].owed += Number(s.amount ?? 0);
-    } else if (s.profile_id === currentUser.id) {
-      // I owe someone — handled in member perspective
     }
   }
 
@@ -245,21 +444,59 @@ function renderNetSummary() {
   `;
 }
 
+// ── Member list ──────────────────────────────────────────────
 function renderMemberList() {
   const container = document.getElementById('member-list');
   if (!container) return;
 
-  if (allMembers.length === 0) {
+  // Separate self from others
+  const selfMember   = allMembers.find(m => m.id === currentUser.id);
+  const otherMembers = allMembers.filter(m => m.id !== currentUser.id);
+
+  if (otherMembers.length === 0 && !selfMember) {
     container.innerHTML = `<div class="empty-state" style="padding:var(--space-6);">
       <div class="empty-icon">👥</div>
-      <div class="empty-text">No other members yet. Invite someone in Settings.</div>
+      <div class="empty-text">No members yet. Invite someone in Settings.</div>
       <a href="/expense-tracker/settings.html" class="btn btn-sm btn-primary" style="margin-top:var(--space-3);">Go to Settings</a>
     </div>`;
     return;
   }
 
-  container.innerHTML = allMembers.map(m => {
-    // Calculate net with this member
+  // Build cards array: self first (only for owner), then others
+  const cards = [];
+
+  // ── Self card (owner only) ───────────────────────────────
+  if (isOwner && selfMember) {
+    // Net = what others owe me minus what I owe others
+    const iOweTotal = allSplits
+      .filter(s => s.profile_id === currentUser.id)
+      .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+    const owedToMe = allSplits
+      .filter(s => s.profile_id !== currentUser.id && s.expense?.paid_by === currentUser.id)
+      .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+    const selfNet = owedToMe - iOweTotal;
+
+    const pillClass = selfNet > 0.01 ? 'balance-positive' : selfNet < -0.01 ? 'balance-negative' : 'balance-zero';
+    const pillText  = selfNet > 0.01 ? `+${formatPHP(selfNet)}` : selfNet < -0.01 ? formatPHP(selfNet) : 'Settled';
+
+    cards.push(`
+      <div class="member-card self-card ${selectedMemberId === currentUser.id ? 'selected' : ''}"
+           onclick="selectMember('${currentUser.id}')">
+        <div class="avatar avatar-lg">${selfMember.full_name[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="flex items-center gap-2">
+            <span class="font-semibold truncate">${escHtml(selfMember.full_name)}</span>
+            <span class="badge badge-primary" style="font-size:10px;padding:1px 6px;">You</span>
+          </div>
+          <div class="text-xs text-muted">Your own balance</div>
+        </div>
+        <span class="balance-pill ${pillClass}">${pillText}</span>
+      </div>
+    `);
+  }
+
+  // ── Other member cards ───────────────────────────────────
+  for (const m of otherMembers) {
     const theyOweMe = allSplits
       .filter(s => s.profile_id === m.id && s.expense?.paid_by === currentUser.id)
       .reduce((s, x) => s + Number(x.amount ?? 0), 0);
@@ -270,35 +507,160 @@ function renderMemberList() {
 
     const pillClass = net > 0.01 ? 'balance-positive' : net < -0.01 ? 'balance-negative' : 'balance-zero';
     const pillText  = net > 0.01 ? `+${formatPHP(net)}` : net < -0.01 ? formatPHP(net) : 'Settled';
+    const sharedCount = allSplits.filter(s =>
+      s.profile_id === m.id || s.expense?.paid_by === m.id
+    ).length;
 
-    return `
+    cards.push(`
       <div class="member-card ${selectedMemberId === m.id ? 'selected' : ''}"
            onclick="selectMember('${m.id}')">
         <div class="avatar avatar-lg">${m.full_name[0].toUpperCase()}</div>
         <div style="flex:1;min-width:0;">
           <div class="font-semibold truncate">${escHtml(m.full_name)}</div>
-          <div class="text-xs text-muted">${allSplits.filter(s => s.profile_id === m.id || s.expense?.paid_by === m.id).length} shared</div>
+          <div class="text-xs text-muted">${sharedCount} shared</div>
         </div>
         <span class="balance-pill ${pillClass}">${pillText}</span>
       </div>
-    `;
-  }).join('');
+    `);
+  }
+
+  container.innerHTML = cards.join('');
 }
 
+// ── Select member ────────────────────────────────────────────
 window.selectMember = function(memberId) {
   selectedMemberId = memberId;
   renderMemberList();
-  renderDetail(memberId);
+  if (memberId === currentUser.id) {
+    renderSelfDetail();
+  } else {
+    renderDetail(memberId);
+  }
 };
 
+// ── Self detail panel (owner view) ───────────────────────────
+function renderSelfDetail() {
+  const panel = document.getElementById('split-detail-panel');
+  if (!panel) return;
+
+  const selfMember = allMembers.find(m => m.id === currentUser.id);
+  if (!selfMember) return;
+
+  // Expenses I paid that others owe me
+  const iAmPayer = allSplits.filter(s =>
+    s.expense?.paid_by === currentUser.id && s.profile_id !== currentUser.id
+  );
+  const totalOwedToMe = iAmPayer.reduce((s, x) => s + Number(x.amount ?? 0), 0);
+
+  // Expenses others paid that I owe
+  const iOwe = allSplits.filter(s => s.profile_id === currentUser.id);
+  const totalIOwe = iOwe.reduce((s, x) => s + Number(x.amount ?? 0), 0);
+
+  const net = totalOwedToMe - totalIOwe;
+
+  // Group iAmPayer by member
+  const byMember = {};
+  for (const s of iAmPayer) {
+    const mid = s.profile_id;
+    if (!byMember[mid]) {
+      const m = allMembers.find(x => x.id === mid);
+      byMember[mid] = { name: m?.full_name ?? 'Member', total: 0 };
+    }
+    byMember[mid].total += Number(s.amount ?? 0);
+  }
+
+  // Group iOwe by payer
+  const byPayer = {};
+  for (const s of iOwe) {
+    const pid = s.expense?.paid_by;
+    if (!pid) continue;
+    if (!byPayer[pid]) {
+      const m = allMembers.find(x => x.id === pid);
+      byPayer[pid] = { name: m?.full_name ?? 'Member', total: 0 };
+    }
+    byPayer[pid].total += Number(s.amount ?? 0);
+  }
+
+  panel.innerHTML = `
+    <div class="split-detail-card">
+      <div class="split-detail-header">
+        <div class="avatar avatar-xl">${selfMember.full_name[0].toUpperCase()}</div>
+        <div style="flex:1;">
+          <div class="flex items-center gap-2">
+            <div class="text-xl font-bold">${escHtml(selfMember.full_name)}</div>
+            <span class="badge badge-primary">You</span>
+          </div>
+          <div class="text-sm text-muted">Your balance overview this month</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="text-xs text-muted mb-1">${net >= 0 ? 'Net in your favor' : 'Net you owe'}</div>
+          <div class="font-mono font-bold text-2xl ${net >= 0 ? 'text-success' : 'text-danger'}">${formatPHP(Math.abs(net))}</div>
+        </div>
+      </div>
+
+      <!-- What others owe me -->
+      ${Object.keys(byMember).length > 0 ? `
+        <div style="padding:var(--space-4) var(--space-5);">
+          <div class="section-title" style="color:var(--clr-success);">💚 Others owe you</div>
+        </div>
+        ${Object.entries(byMember).map(([mid, b]) => `
+          <div class="self-stat-row">
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="width:28px;height:28px;font-size:0.65rem;">${b.name[0].toUpperCase()}</div>
+              <span class="text-sm font-medium">${escHtml(b.name)}</span>
+            </div>
+            <span class="font-mono font-semibold text-success">${formatPHP(b.total)}</span>
+          </div>
+        `).join('')}
+        <div style="padding:var(--space-3) var(--space-5);background:var(--clr-success-light);" class="flex justify-between items-center">
+          <span class="text-sm font-semibold text-success">Total owed to you</span>
+          <span class="font-mono font-bold text-success">${formatPHP(totalOwedToMe)}</span>
+        </div>
+      ` : ''}
+
+      <!-- What I owe others -->
+      ${Object.keys(byPayer).length > 0 ? `
+        <div style="padding:var(--space-4) var(--space-5);margin-top:var(--space-2);">
+          <div class="section-title" style="color:var(--clr-danger);">❤️ You owe others</div>
+        </div>
+        ${Object.entries(byPayer).map(([pid, b]) => `
+          <div class="self-stat-row">
+            <div class="flex items-center gap-2">
+              <div class="avatar" style="width:28px;height:28px;font-size:0.65rem;">${b.name[0].toUpperCase()}</div>
+              <span class="text-sm font-medium">${escHtml(b.name)}</span>
+            </div>
+            <span class="font-mono font-semibold text-danger">${formatPHP(b.total)}</span>
+          </div>
+        `).join('')}
+        <div style="padding:var(--space-3) var(--space-5);background:var(--clr-danger-light);" class="flex justify-between items-center">
+          <span class="text-sm font-semibold text-danger">Total you owe</span>
+          <span class="font-mono font-bold text-danger">${formatPHP(totalIOwe)}</span>
+        </div>
+      ` : ''}
+
+      ${Object.keys(byMember).length === 0 && Object.keys(byPayer).length === 0 ? `
+        <div class="empty-state" style="padding:var(--space-8);">
+          <div class="empty-icon">🤝</div>
+          <div class="empty-title">All settled up!</div>
+          <div class="empty-text">No outstanding balances for you this month.</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// ── Member detail panel ──────────────────────────────────────
 function renderDetail(memberId) {
-  const member  = allMembers.find(m => m.id === memberId);
-  const panel   = document.getElementById('split-detail-panel');
+  const member = allMembers.find(m => m.id === memberId);
+  const panel  = document.getElementById('split-detail-panel');
   if (!member || !panel) return;
 
-  // Get all unsettled splits between me and this member
-  const theyOweMe = allSplits.filter(s => s.profile_id === member.id && s.expense?.paid_by === currentUser.id);
-  const iOweThem  = allSplits.filter(s => s.profile_id === currentUser.id && s.expense?.paid_by === member.id);
+  const theyOweMe = allSplits.filter(s =>
+    s.profile_id === member.id && s.expense?.paid_by === currentUser.id
+  );
+  const iOweThem = allSplits.filter(s =>
+    s.profile_id === currentUser.id && s.expense?.paid_by === member.id
+  );
 
   const totalTheyOwe = theyOweMe.reduce((s, x) => s + Number(x.amount ?? 0), 0);
   const totalIOwe    = iOweThem.reduce((s, x) => s + Number(x.amount ?? 0), 0);
@@ -322,7 +684,7 @@ function renderDetail(memberId) {
         <div style="padding:var(--space-4) var(--space-5);">
           <div class="section-title" style="color:var(--clr-success);">💚 ${escHtml(member.full_name)} owes you</div>
         </div>
-        ${theyOweMe.map(s => splitExpenseRow(s, member, 'owed')).join('')}
+        ${theyOweMe.map(s => splitExpenseRow(s, 'owed')).join('')}
         <div style="padding:var(--space-3) var(--space-5);background:var(--clr-success-light);" class="flex justify-between items-center">
           <span class="text-sm font-semibold text-success">Subtotal they owe</span>
           <span class="font-mono font-bold text-success">${formatPHP(totalTheyOwe)}</span>
@@ -333,7 +695,7 @@ function renderDetail(memberId) {
         <div style="padding:var(--space-4) var(--space-5);margin-top:var(--space-2);">
           <div class="section-title" style="color:var(--clr-danger);">❤️ You owe ${escHtml(member.full_name)}</div>
         </div>
-        ${iOweThem.map(s => splitExpenseRow(s, member, 'owe')).join('')}
+        ${iOweThem.map(s => splitExpenseRow(s, 'owe')).join('')}
         <div style="padding:var(--space-3) var(--space-5);background:var(--clr-danger-light);" class="flex justify-between items-center">
           <span class="text-sm font-semibold text-danger">Subtotal you owe</span>
           <span class="font-mono font-bold text-danger">${formatPHP(totalIOwe)}</span>
@@ -361,7 +723,7 @@ function renderDetail(memberId) {
   `;
 }
 
-function splitExpenseRow(s, member, direction) {
+function splitExpenseRow(s, direction) {
   return `
     <div class="split-expense-row">
       <div>
@@ -377,6 +739,7 @@ function splitExpenseRow(s, member, direction) {
   `;
 }
 
+// ── Settle actions ───────────────────────────────────────────
 window.settleSingle = async function(splitId) {
   const { error } = await supabase.from('expense_splits').update({
     is_settled: true,
@@ -392,7 +755,10 @@ window.settleAll = async function(memberId) {
   if (!ok) return;
 
   const splitIds = allSplits
-    .filter(s => s.profile_id === memberId || (s.profile_id === currentUser.id && s.expense?.paid_by === memberId))
+    .filter(s =>
+      s.profile_id === memberId ||
+      (s.profile_id === currentUser.id && s.expense?.paid_by === memberId)
+    )
     .map(s => s.id);
 
   if (splitIds.length === 0) return;
@@ -406,6 +772,7 @@ window.settleAll = async function(memberId) {
   await loadAll();
 };
 
+// ── Settlement history ───────────────────────────────────────
 function renderHistory() {
   const container = document.getElementById('history-list');
   if (!container) return;
@@ -425,6 +792,142 @@ function renderHistory() {
       <div class="font-mono text-sm font-semibold text-success">${formatPHP(s.amount)}</div>
     </div>
   `).join('');
+}
+
+// ── Monthly forecast ─────────────────────────────────────────
+function renderForecast() {
+  const listEl     = document.getElementById('forecast-list');
+  const totalsEl   = document.getElementById('forecast-totals-area');
+  const subtitleEl = document.getElementById('forecast-subtitle');
+  if (!listEl || !totalsEl) return;
+
+  // Parse current month label for subtitle
+  const [yr, mo] = currentMonth.split('-').map(Number);
+  const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+  if (subtitleEl) subtitleEl.textContent = monthLabel;
+
+  const items = []; // { title, icon, totalAmount, yourShare, type }
+
+  // ── 1. Recurring expenses ─────────────────────────────────
+  for (const r of allRecurring) {
+    const multiplier   = freqToMonthly[r.frequency] ?? 1;
+    const monthlyTotal = Number(r.amount) * multiplier;
+
+    // Determine your share
+    let yourShare = 0;
+    const splitConfig = Array.isArray(r.split_config) ? r.split_config : [];
+    const mySplitRow  = splitConfig.find(sc => sc.profile_id === currentUser.id);
+
+    if (mySplitRow) {
+      // I have an explicit split amount
+      yourShare = Number(mySplitRow.amount ?? 0) * multiplier;
+    } else if (r.paid_by === currentUser.id) {
+      // I pay for it and there's no split → full amount is mine
+      yourShare = monthlyTotal;
+    }
+    // else: I'm not involved → yourShare stays 0 but we still show the household item
+
+    items.push({
+      title:       r.title,
+      icon:        r.category?.icon ?? '🔁',
+      totalAmount: monthlyTotal,
+      yourShare,
+      type:        'recurring',
+      freqLabel:   freqLabel(r.frequency),
+    });
+  }
+
+  // ── 2. One-time unpaid expenses this month ────────────────
+  for (const e of allOneTime) {
+    const splits   = Array.isArray(e.splits) ? e.splits : [];
+    const mySplit  = splits.find(s => s.profile_id === currentUser.id);
+    let yourShare  = 0;
+
+    if (mySplit) {
+      yourShare = Number(mySplit.amount ?? 0);
+    } else if (e.paid_by === currentUser.id && splits.length === 0) {
+      yourShare = Number(e.amount);
+    }
+
+    // Only include if I'm involved (have a split or I paid it with no splits)
+    const amInvolved = mySplit || (e.paid_by === currentUser.id && splits.length === 0);
+    if (!amInvolved) continue;
+
+    items.push({
+      title:       e.title,
+      icon:        '💸',
+      totalAmount: Number(e.amount),
+      yourShare,
+      type:        'onetime',
+    });
+  }
+
+  // ── Totals ────────────────────────────────────────────────
+  const grandTotal  = items.reduce((s, i) => s + i.totalAmount, 0);
+  const totalMyShare = items.reduce((s, i) => s + i.yourShare, 0);
+
+  totalsEl.innerHTML = `
+    <div>
+      <div class="forecast-total-label">Household Total</div>
+      <div class="forecast-total-value" style="color:var(--clr-text);">${formatPHP(grandTotal)}</div>
+    </div>
+    <div>
+      <div class="forecast-total-label">Your Share</div>
+      <div class="forecast-total-value" style="color:var(--clr-primary);">${formatPHP(totalMyShare)}</div>
+    </div>
+  `;
+
+  // ── List ──────────────────────────────────────────────────
+  if (items.length === 0) {
+    listEl.innerHTML = `
+      <div class="empty-state" style="padding:var(--space-6);">
+        <div class="empty-icon">📅</div>
+        <div class="empty-text">No forecast data for this month.</div>
+      </div>`;
+    return;
+  }
+
+  // Sort: recurring first, then by amount desc
+  items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'recurring' ? -1 : 1;
+    return b.totalAmount - a.totalAmount;
+  });
+
+  listEl.innerHTML = items.map(item => {
+    const shareLabel = item.yourShare > 0
+      ? `<span class="forecast-item-share-amt">${formatPHP(item.yourShare)}</span>`
+      : `<span class="text-muted" style="font-size:var(--text-xs);">—</span>`;
+
+    const typeLabel = item.type === 'recurring'
+      ? `<span class="forecast-type-tag forecast-type-recurring">🔁 ${item.freqLabel ?? 'Recurring'}</span>`
+      : `<span class="forecast-type-tag forecast-type-onetime">💸 One-time</span>`;
+
+    return `
+      <div class="forecast-item">
+        <div class="forecast-item-top">
+          <span style="font-size:1rem;flex-shrink:0;">${item.icon}</span>
+          <span class="forecast-item-name" title="${escHtml(item.title)}">${escHtml(item.title)}</span>
+          <span class="forecast-item-total">${formatPHP(item.totalAmount)}</span>
+        </div>
+        <div class="forecast-item-share">
+          <span class="flex items-center gap-1">${typeLabel}</span>
+          <span class="flex items-center gap-1">
+            <span class="text-muted" style="font-size:var(--text-xs);">Your share:</span>
+            ${shareLabel}
+          </span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function freqLabel(f) {
+  const map = {
+    daily: 'Daily', weekly: 'Weekly', biweekly: 'Bi-weekly',
+    monthly: 'Monthly', bimonthly: 'Bi-monthly', annually: 'Annually',
+  };
+  return map[f] ?? f;
 }
 </script>
 </body>
