@@ -76,14 +76,6 @@
       padding: var(--space-5);
       margin-bottom: var(--space-5);
     }
-    .net-row {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) 0;
-      border-bottom: 1px solid var(--clr-border);
-    }
-    .net-row:last-child { border-bottom: none; }
 
     /* ── Settlement history ──────────────────────────────────── */
     .history-item {
@@ -336,7 +328,10 @@ async function loadAll() {
   renderNetSummary();
   renderMemberList();
   renderForecast();
-  if (selectedMemberId) renderDetail(selectedMemberId);
+  if (selectedMemberId) {
+    if (selectedMemberId === currentUser.id) renderSelfDetail();
+    else renderDetail(selectedMemberId);
+  }
 }
 
 // ── Data loaders ─────────────────────────────────────────────
@@ -344,7 +339,6 @@ async function loadMembers() {
   const { data } = await supabase
     .from('profiles').select('id, full_name, role')
     .eq('household_id', currentProfile.household_id);
-  // Keep all members; self-filtering handled in render
   allMembers = data ?? [];
 }
 
@@ -376,7 +370,7 @@ async function loadHistory() {
 }
 
 async function loadForecastData(start, end) {
-  // Recurring expenses (active)
+  // Recurring expenses (active) — split_config is a JSONB array of other members' shares
   const { data: recData } = await supabase
     .from('recurring_expenses')
     .select('id, title, amount, frequency, paid_by, split_config, category:categories(icon)')
@@ -384,7 +378,7 @@ async function loadForecastData(start, end) {
     .eq('is_active', true);
   allRecurring = recData ?? [];
 
-  // One-time unpaid expenses this month
+  // One-time unpaid expenses this month with their split rows
   const { data: expData } = await supabase
     .from('expenses')
     .select('id, title, amount, due_date, paid_by, expense_date, splits:expense_splits(profile_id, amount)')
@@ -449,7 +443,6 @@ function renderMemberList() {
   const container = document.getElementById('member-list');
   if (!container) return;
 
-  // Separate self from others
   const selfMember   = allMembers.find(m => m.id === currentUser.id);
   const otherMembers = allMembers.filter(m => m.id !== currentUser.id);
 
@@ -462,12 +455,10 @@ function renderMemberList() {
     return;
   }
 
-  // Build cards array: self first (only for owner), then others
   const cards = [];
 
-  // ── Self card (owner only) ───────────────────────────────
+  // ── Self card (owner only, always first) ─────────────────
   if (isOwner && selfMember) {
-    // Net = what others owe me minus what I owe others
     const iOweTotal = allSplits
       .filter(s => s.profile_id === currentUser.id)
       .reduce((s, x) => s + Number(x.amount ?? 0), 0);
@@ -531,34 +522,28 @@ function renderMemberList() {
 window.selectMember = function(memberId) {
   selectedMemberId = memberId;
   renderMemberList();
-  if (memberId === currentUser.id) {
-    renderSelfDetail();
-  } else {
-    renderDetail(memberId);
-  }
+  if (memberId === currentUser.id) renderSelfDetail();
+  else renderDetail(memberId);
 };
 
-// ── Self detail panel (owner view) ───────────────────────────
+// ── Self detail panel (owner) ────────────────────────────────
 function renderSelfDetail() {
   const panel = document.getElementById('split-detail-panel');
   if (!panel) return;
-
   const selfMember = allMembers.find(m => m.id === currentUser.id);
   if (!selfMember) return;
 
-  // Expenses I paid that others owe me
   const iAmPayer = allSplits.filter(s =>
     s.expense?.paid_by === currentUser.id && s.profile_id !== currentUser.id
   );
   const totalOwedToMe = iAmPayer.reduce((s, x) => s + Number(x.amount ?? 0), 0);
 
-  // Expenses others paid that I owe
   const iOwe = allSplits.filter(s => s.profile_id === currentUser.id);
   const totalIOwe = iOwe.reduce((s, x) => s + Number(x.amount ?? 0), 0);
 
   const net = totalOwedToMe - totalIOwe;
 
-  // Group iAmPayer by member
+  // Group by member
   const byMember = {};
   for (const s of iAmPayer) {
     const mid = s.profile_id;
@@ -569,7 +554,6 @@ function renderSelfDetail() {
     byMember[mid].total += Number(s.amount ?? 0);
   }
 
-  // Group iOwe by payer
   const byPayer = {};
   for (const s of iOwe) {
     const pid = s.expense?.paid_by;
@@ -598,7 +582,6 @@ function renderSelfDetail() {
         </div>
       </div>
 
-      <!-- What others owe me -->
       ${Object.keys(byMember).length > 0 ? `
         <div style="padding:var(--space-4) var(--space-5);">
           <div class="section-title" style="color:var(--clr-success);">💚 Others owe you</div>
@@ -618,7 +601,6 @@ function renderSelfDetail() {
         </div>
       ` : ''}
 
-      <!-- What I owe others -->
       ${Object.keys(byPayer).length > 0 ? `
         <div style="padding:var(--space-4) var(--space-5);margin-top:var(--space-2);">
           <div class="section-title" style="color:var(--clr-danger);">❤️ You owe others</div>
@@ -801,31 +783,37 @@ function renderForecast() {
   const subtitleEl = document.getElementById('forecast-subtitle');
   if (!listEl || !totalsEl) return;
 
-  // Parse current month label for subtitle
   const [yr, mo] = currentMonth.split('-').map(Number);
   const monthLabel = new Date(yr, mo - 1, 1).toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
   if (subtitleEl) subtitleEl.textContent = monthLabel;
 
-  const items = []; // { title, icon, totalAmount, yourShare, type }
+  const items = [];
 
   // ── 1. Recurring expenses ─────────────────────────────────
   for (const r of allRecurring) {
     const multiplier   = freqToMonthly[r.frequency] ?? 1;
     const monthlyTotal = Number(r.amount) * multiplier;
 
-    // Determine your share
+    // split_config stores OTHER members' shares only.
+    // The payer's share = total - sum(all split rows).
+    // If there are no split rows at all, the payer owns everything.
+    const splitConfig  = Array.isArray(r.split_config) ? r.split_config : [];
+    const sumOfSplits  = splitConfig.reduce((s, sc) => s + Number(sc.amount ?? 0), 0);
+    const payerMonthlyShare = monthlyTotal - (sumOfSplits * multiplier);
+
     let yourShare = 0;
-    const splitConfig = Array.isArray(r.split_config) ? r.split_config : [];
-    const mySplitRow  = splitConfig.find(sc => sc.profile_id === currentUser.id);
+
+    // Am I one of the split members (not the payer)?
+    const mySplitRow = splitConfig.find(sc => sc.profile_id === currentUser.id);
 
     if (mySplitRow) {
-      // I have an explicit split amount
+      // My share is my explicit split amount × multiplier
       yourShare = Number(mySplitRow.amount ?? 0) * multiplier;
     } else if (r.paid_by === currentUser.id) {
-      // I pay for it and there's no split → full amount is mine
-      yourShare = monthlyTotal;
+      // I'm the payer — my share is what's left after all splits
+      yourShare = splitConfig.length > 0 ? payerMonthlyShare : monthlyTotal;
     }
-    // else: I'm not involved → yourShare stays 0 but we still show the household item
+    // else: not involved at all → yourShare stays 0 but still shown in household total
 
     items.push({
       title:       r.title,
@@ -834,23 +822,30 @@ function renderForecast() {
       yourShare,
       type:        'recurring',
       freqLabel:   freqLabel(r.frequency),
+      involved:    yourShare > 0 || r.paid_by === currentUser.id || !!mySplitRow,
     });
   }
 
   // ── 2. One-time unpaid expenses this month ────────────────
   for (const e of allOneTime) {
-    const splits   = Array.isArray(e.splits) ? e.splits : [];
-    const mySplit  = splits.find(s => s.profile_id === currentUser.id);
-    let yourShare  = 0;
+    const splits  = Array.isArray(e.splits) ? e.splits : [];
+    const mySplit = splits.find(s => s.profile_id === currentUser.id);
+    let yourShare = 0;
 
     if (mySplit) {
+      // I'm a split member — use my explicit split amount
       yourShare = Number(mySplit.amount ?? 0);
     } else if (e.paid_by === currentUser.id && splits.length === 0) {
+      // I paid it, no splits → fully mine
       yourShare = Number(e.amount);
+    } else if (e.paid_by === currentUser.id && splits.length > 0) {
+      // I paid it and split with others → my share = total - sum of splits
+      const sumSplits = splits.reduce((s, sp) => s + Number(sp.amount ?? 0), 0);
+      yourShare = Number(e.amount) - sumSplits;
     }
 
-    // Only include if I'm involved (have a split or I paid it with no splits)
-    const amInvolved = mySplit || (e.paid_by === currentUser.id && splits.length === 0);
+    // Only include if I'm somehow involved
+    const amInvolved = mySplit != null || e.paid_by === currentUser.id;
     if (!amInvolved) continue;
 
     items.push({
@@ -859,11 +854,12 @@ function renderForecast() {
       totalAmount: Number(e.amount),
       yourShare,
       type:        'onetime',
+      involved:    true,
     });
   }
 
   // ── Totals ────────────────────────────────────────────────
-  const grandTotal  = items.reduce((s, i) => s + i.totalAmount, 0);
+  const grandTotal   = items.reduce((s, i) => s + i.totalAmount, 0);
   const totalMyShare = items.reduce((s, i) => s + i.yourShare, 0);
 
   totalsEl.innerHTML = `
@@ -877,7 +873,6 @@ function renderForecast() {
     </div>
   `;
 
-  // ── List ──────────────────────────────────────────────────
   if (items.length === 0) {
     listEl.innerHTML = `
       <div class="empty-state" style="padding:var(--space-6);">
@@ -887,18 +882,18 @@ function renderForecast() {
     return;
   }
 
-  // Sort: recurring first, then by amount desc
+  // Sort: recurring first, then by total amount desc
   items.sort((a, b) => {
     if (a.type !== b.type) return a.type === 'recurring' ? -1 : 1;
     return b.totalAmount - a.totalAmount;
   });
 
   listEl.innerHTML = items.map(item => {
-    const shareLabel = item.yourShare > 0
+    const shareDisplay = item.yourShare > 0
       ? `<span class="forecast-item-share-amt">${formatPHP(item.yourShare)}</span>`
       : `<span class="text-muted" style="font-size:var(--text-xs);">—</span>`;
 
-    const typeLabel = item.type === 'recurring'
+    const typeTag = item.type === 'recurring'
       ? `<span class="forecast-type-tag forecast-type-recurring">🔁 ${item.freqLabel ?? 'Recurring'}</span>`
       : `<span class="forecast-type-tag forecast-type-onetime">💸 One-time</span>`;
 
@@ -910,10 +905,10 @@ function renderForecast() {
           <span class="forecast-item-total">${formatPHP(item.totalAmount)}</span>
         </div>
         <div class="forecast-item-share">
-          <span class="flex items-center gap-1">${typeLabel}</span>
+          <span>${typeTag}</span>
           <span class="flex items-center gap-1">
             <span class="text-muted" style="font-size:var(--text-xs);">Your share:</span>
-            ${shareLabel}
+            ${shareDisplay}
           </span>
         </div>
       </div>
